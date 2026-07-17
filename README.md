@@ -107,23 +107,30 @@ kp doctor
 
 See also: [DataHub Quickstart](https://docs.datahub.com/docs/quickstart) · [DataHub MCP](https://docs.datahub.com/docs/features/feature-guides/mcp) · [DataHub Skills](https://docs.datahub.com/docs/dev-guides/agent-context/skills)
 
-### Web demo
+### Web workbench (enterprise UI)
 
-No extra deps (stdlib server):
+No extra deps (stdlib server). **Every button runs the real CLI** (`python -m known_path.cli …`).
 
 ```bash
 kp web
 # or:
-python -m known_path.webapp --port 8088
+python -m known_path.webapp --host 0.0.0.0 --port 8088
 # open http://127.0.0.1:8088
 ```
 
-Buttons: **Baseline** · **Known path** · **Fail closed** · **Run full demo**.  
-Catalog + CSV samples load from `datasets/demo-finance/`.
+| Panel | What you get |
+|-------|----------------|
+| Job intent + CTAs | Baseline / Known path / Fail closed / Full demo |
+| Activation graph | SVG nodes lit from last CLI plan |
+| Fetch comparison | Honest shared-axis bars (baseline vs known-path vs blocked) |
+| Catalog table | demo-finance assets + usage bars |
+| Agent terminal | Type `run known-path`, `demo`, `doctor` — bridged to CLI |
 
 ```bash
 kp dataset   # list assets + path
 ```
+
+UX notes: [`docs/UX_AND_RESOURCES.md`](docs/UX_AND_RESOURCES.md)
 
 ---
 
