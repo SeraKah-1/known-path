@@ -1,0 +1,91 @@
+{
+  "job_id": "job.revenue_by_region_quarter",
+  "intent": "revenue by region last quarter Finance canonical",
+  "mode": "baseline",
+  "nodes": [
+    {
+      "urn": "urn:li:dataset:(urn:li:dataPlatform:snowflake,finance.revenue_old,PROD)",
+      "name": "finance.revenue_old",
+      "role": null,
+      "relevance": 3,
+      "trust": "yellow",
+      "explore": false,
+      "urgency": "normal",
+      "reasons": [
+        "lexical_hits:3",
+        "baseline_no_trust_gate",
+        "ignored_deprecated",
+        "junk_suffix_boost"
+      ],
+      "activated": true
+    },
+    {
+      "urn": "urn:li:dataset:(urn:li:dataPlatform:snowflake,finance.rev_backup,PROD)",
+      "name": "finance.rev_backup",
+      "role": null,
+      "relevance": 3,
+      "trust": "green",
+      "explore": false,
+      "urgency": "normal",
+      "reasons": [
+        "lexical_hits:1",
+        "baseline_no_trust_gate",
+        "junk_suffix_boost"
+      ],
+      "activated": true
+    },
+    {
+      "urn": "urn:li:dataset:(urn:li:dataPlatform:snowflake,finance.revenue_canonical,PROD)",
+      "name": "finance.revenue_canonical",
+      "role": null,
+      "relevance": 3,
+      "trust": "green",
+      "explore": false,
+      "urgency": "normal",
+      "reasons": [
+        "lexical_hits:4",
+        "baseline_no_trust_gate"
+      ],
+      "activated": true
+    },
+    {
+      "urn": "urn:li:dataset:(urn:li:dataPlatform:snowflake,dim.region,PROD)",
+      "name": "dim.region",
+      "role": null,
+      "relevance": 2,
+      "trust": "green",
+      "explore": false,
+      "urgency": "normal",
+      "reasons": [
+        "lexical_hits:2",
+        "baseline_no_trust_gate"
+      ],
+      "activated": true
+    },
+    {
+      "urn": "urn:li:dataset:(urn:li:dataPlatform:snowflake,ops.pipeline_metrics,PROD)",
+      "name": "ops.pipeline_metrics",
+      "role": null,
+      "relevance": 0,
+      "trust": "green",
+      "explore": false,
+      "urgency": "normal",
+      "reasons": [
+        "lexical_hits:0",
+        "baseline_no_trust_gate"
+      ],
+      "activated": false
+    }
+  ],
+  "status": "SUCCESS",
+  "message": "Baseline thrash: 5 fetches, activated 4 (no route sheet, weak trust).",
+  "entity_fetches": 5,
+  "chosen_urns": [
+    "urn:li:dataset:(urn:li:dataPlatform:snowflake,finance.revenue_old,PROD)",
+    "urn:li:dataset:(urn:li:dataPlatform:snowflake,finance.rev_backup,PROD)",
+    "urn:li:dataset:(urn:li:dataPlatform:snowflake,finance.revenue_canonical,PROD)",
+    "urn:li:dataset:(urn:li:dataPlatform:snowflake,dim.region,PROD)"
+  ],
+  "sql_artifact": "-- known-path generated SQL\n-- job: job.revenue_by_region_quarter\n-- intent: revenue by region last quarter Finance canonical\n-- mode: baseline-naive\n-- fact_urn: urn:li:dataset:(urn:li:dataPlatform:snowflake,finance.revenue_old,PROD)\n-- fact_name: finance.revenue_old\n-- dim_urn: urn:li:dataset:(urn:li:dataPlatform:snowflake,finance.rev_backup,PROD)\n-- dim_name: finance.rev_backup\n\nSELECT\n  d.region AS region,\n  SUM(f.dt) AS revenue\nFROM finance.revenue_old AS f\nJOIN finance.rev_backup AS d\n  ON f.region_id = d.region_id\nGROUP BY 1\nORDER BY 2 DESC;\n\n",
+  "write_back_note": null
+}

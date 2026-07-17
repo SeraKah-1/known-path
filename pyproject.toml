@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "known-path"
+version = "0.1.0"
+description = "Light only the trusted catalog assets for a data job — then leave the route behind."
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+authors = [{ name = "SeraKah-1" }]
+keywords = ["datahub", "metadata", "catalog", "data-engineering", "mcp"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Topic :: Database",
+]
+dependencies = [
+  "typer>=0.12.0",
+  "rich>=13.7.0",
+  "pyyaml>=6.0",
+  "httpx>=0.27.0",
+]
+
+[project.optional-dependencies]
+mcp = ["mcp>=1.2.0"]
+web = ["fastapi>=0.110.0", "uvicorn>=0.27.0"]
+dev = ["pytest>=8.0.0", "pytest-cov>=4.1.0"]
+
+[project.scripts]
+known-path = "known_path.cli:app"
+kp = "known_path.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/SeraKah-1/known-path"
+Documentation = "https://github.com/SeraKah-1/known-path#readme"
+Repository = "https://github.com/SeraKah-1/known-path"
+Hackathon = "https://datahub.devpost.com"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/known_path"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src",
+  "/cards",
+  "/skills",
+  "/examples",
+  "/docs",
+  "/assets",
+  "/tests",
+  "/LICENSE",
+  "/README.md",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

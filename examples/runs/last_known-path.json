@@ -1,0 +1,46 @@
+{
+  "job_id": "job.revenue_by_region_quarter",
+  "intent": "revenue by region last quarter Finance canonical",
+  "mode": "known-path",
+  "nodes": [
+    {
+      "urn": "urn:li:dataset:(urn:li:dataPlatform:snowflake,finance.revenue_canonical,PROD)",
+      "name": "finance.revenue_canonical",
+      "role": "metric_fact",
+      "relevance": 3,
+      "trust": "green",
+      "explore": false,
+      "urgency": "normal",
+      "reasons": [
+        "listed_on_route_sheet",
+        "role:metric_fact",
+        "trust_ok"
+      ],
+      "activated": true
+    },
+    {
+      "urn": "urn:li:dataset:(urn:li:dataPlatform:snowflake,dim.region,PROD)",
+      "name": "dim.region",
+      "role": "region_dim",
+      "relevance": 3,
+      "trust": "green",
+      "explore": false,
+      "urgency": "normal",
+      "reasons": [
+        "listed_on_route_sheet",
+        "role:region_dim",
+        "trust_ok"
+      ],
+      "activated": true
+    }
+  ],
+  "status": "SUCCESS",
+  "message": "Activated 2 node(s); 2 entity fetch(es).",
+  "entity_fetches": 2,
+  "chosen_urns": [
+    "urn:li:dataset:(urn:li:dataPlatform:snowflake,finance.revenue_canonical,PROD)",
+    "urn:li:dataset:(urn:li:dataPlatform:snowflake,dim.region,PROD)"
+  ],
+  "sql_artifact": "-- known-path generated SQL\n-- job: job.revenue_by_region_quarter\n-- intent: revenue by region last quarter Finance canonical\n-- mode: route-sheet\n-- fact_urn: urn:li:dataset:(urn:li:dataPlatform:snowflake,finance.revenue_canonical,PROD)\n-- fact_name: finance.revenue_canonical\n-- dim_urn: urn:li:dataset:(urn:li:dataPlatform:snowflake,dim.region,PROD)\n-- dim_name: dim.region\n\nSELECT\n  d.region_name AS region,\n  SUM(f.revenue_amount) AS revenue\nFROM finance.revenue_canonical AS f\nJOIN dim.region AS d\n  ON f.region_id = d.region_id\nWHERE f.order_date >= DATE_TRUNC('quarter', CURRENT_DATE - INTERVAL '1 quarter')\n  AND f.order_date <  DATE_TRUNC('quarter', CURRENT_DATE)\nGROUP BY 1\nORDER BY 2 DESC;\n\n",
+  "write_back_note": "route:job.revenue_by_region_quarter: success urns=urn:li:dataset:(urn:li:dataPlatform:snowflake,finance.revenue_canonical,PROD),urn:li:dataset:(urn:li:dataPlatform:snowflake,dim.region,PROD)"
+}

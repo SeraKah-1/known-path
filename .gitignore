@@ -1,0 +1,23 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+# Keep last_* samples for judges; ignore timestamped churn
+examples/runs/*T*.json
+!examples/runs/last_*.json
+!examples/runs/writeback_route_note.md
+!examples/runs/.gitkeep
+.DS_Store
+*.log
+.mypy_cache/
+.ruff_cache/

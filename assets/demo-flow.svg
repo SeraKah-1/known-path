@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 220" role="img">
+  <rect width="900" height="220" fill="#f8fafc"/>
+  <rect x="20" y="60" width="160" height="80" rx="12" fill="#334155"/>
+  <text x="100" y="105" text-anchor="middle" fill="#fff" font-family="sans-serif" font-size="16">Baseline thrash</text>
+  <text x="100" y="128" text-anchor="middle" fill="#fca5a5" font-family="sans-serif" font-size="13">wrong table</text>
+  <path d="M190 100 H240" stroke="#94a3b8" stroke-width="3" marker-end="url(#a)"/>
+  <rect x="250" y="60" width="160" height="80" rx="12" fill="#0f766e"/>
+  <text x="330" y="105" text-anchor="middle" fill="#fff" font-family="sans-serif" font-size="16">Route sheet</text>
+  <text x="330" y="128" text-anchor="middle" fill="#a7f3d0" font-family="sans-serif" font-size="13">shortlist nodes</text>
+  <path d="M420 100 H470" stroke="#94a3b8" stroke-width="3"/>
+  <rect x="480" y="60" width="160" height="80" rx="12" fill="#b45309"/>
+  <text x="560" y="105" text-anchor="middle" fill="#fff" font-family="sans-serif" font-size="16">Trust check</text>
+  <text x="560" y="128" text-anchor="middle" fill="#fde68a" font-family="sans-serif" font-size="13">stop if red</text>
+  <path d="M650 100 H700" stroke="#94a3b8" stroke-width="3"/>
+  <rect x="710" y="60" width="170" height="80" rx="12" fill="#1d4ed8"/>
+  <text x="795" y="105" text-anchor="middle" fill="#fff" font-family="sans-serif" font-size="16">SQL + note</text>
+  <text x="795" y="128" text-anchor="middle" fill="#bfdbfe" font-family="sans-serif" font-size="13">leave the route</text>
+  <text x="450" y="30" text-anchor="middle" fill="#0f172a" font-family="sans-serif" font-size="18" font-weight="700">How a run works</text>
+</svg>

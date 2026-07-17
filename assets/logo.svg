@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 160" role="img" aria-label="known-path">
+  <rect width="640" height="160" rx="24" fill="#0f172a"/>
+  <rect x="24" y="24" width="112" height="112" rx="24" fill="#0f766e"/>
+  <path d="M48 100 L78 60 L96 84 L120 44" stroke="#ecfdf5" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="120" cy="44" r="10" fill="#fbbf24"/>
+  <text x="160" y="78" font-family="ui-sans-serif, system-ui, sans-serif" font-size="48" font-weight="700" fill="#f8fafc">known-path</text>
+  <text x="160" y="112" font-family="ui-sans-serif, system-ui, sans-serif" font-size="18" fill="#94a3b8">Trusted shortlist for every data job</text>
+</svg>

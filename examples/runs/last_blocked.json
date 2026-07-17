@@ -1,0 +1,43 @@
+{
+  "job_id": "job.revenue_by_region_quarter",
+  "intent": "revenue by region last quarter Finance canonical",
+  "mode": "blocked",
+  "nodes": [
+    {
+      "urn": "urn:li:dataset:(urn:li:dataPlatform:snowflake,finance.revenue_canonical,PROD)",
+      "name": "finance.revenue_canonical",
+      "role": "metric_fact",
+      "relevance": 3,
+      "trust": "red",
+      "explore": false,
+      "urgency": "high",
+      "reasons": [
+        "listed_on_route_sheet",
+        "role:metric_fact",
+        "deprecated"
+      ],
+      "activated": false
+    },
+    {
+      "urn": "urn:li:dataset:(urn:li:dataPlatform:snowflake,dim.region,PROD)",
+      "name": "dim.region",
+      "role": "region_dim",
+      "relevance": 3,
+      "trust": "green",
+      "explore": false,
+      "urgency": "normal",
+      "reasons": [
+        "listed_on_route_sheet",
+        "role:region_dim",
+        "trust_ok"
+      ],
+      "activated": false
+    }
+  ],
+  "status": "BLOCKED_TRUST",
+  "message": "Stopped: required asset failed trust check (finance.revenue_canonical). Will not invent a replacement table.",
+  "entity_fetches": 0,
+  "chosen_urns": [],
+  "sql_artifact": null,
+  "write_back_note": "blocked:job.revenue_by_region_quarter: red trust on finance.revenue_canonical"
+}
