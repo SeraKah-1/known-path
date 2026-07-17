@@ -1,0 +1,5 @@
+region_id,region_name,country,geo_area
+R-NA,North America,US,Americas
+R-EU,Europe,DE,EMEA
+R-APAC,Asia Pacific,SG,APAC
+R-LATAM,Latin America,BR,Americas

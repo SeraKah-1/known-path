@@ -141,6 +141,42 @@ def cards() -> None:
         console.print(f"• {p.name}")
 
 
+@app.command()
+def web(
+    host: str = typer.Option("127.0.0.1", "--host"),
+    port: int = typer.Option(8088, "--port", "-p"),
+    open_browser: bool = typer.Option(False, "--open"),
+) -> None:
+    """Start the web demo (stdlib server, no extra deps)."""
+    from known_path.webapp import serve
+
+    serve(host=host, port=port, open_browser=open_browser)
+
+
+@app.command("dataset")
+def dataset_cmd() -> None:
+    """Show demo dataset path and assets."""
+    from known_path.fixtures import dataset_dir, demo_catalog, list_sample_files
+
+    d = dataset_dir()
+    assets = demo_catalog()
+    console.print(Panel.fit(
+        f"[bold]dataset[/bold] {d}\n"
+        f"assets: {len(assets)}\n"
+        f"csv samples: {len(list_sample_files())}",
+        title="demo-finance",
+    ))
+    for a in assets:
+        flags = []
+        if a.certified:
+            flags.append("certified")
+        if a.deprecated:
+            flags.append("deprecated")
+        if a.quality_fail:
+            flags.append("quality_fail")
+        console.print(f"• {a.name}  [dim]{', '.join(flags) or '—'}[/dim]")
+
+
 def _print_plan(plan) -> None:
     color = {
         RunStatus.SUCCESS: "green",

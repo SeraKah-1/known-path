@@ -107,12 +107,22 @@ kp doctor
 
 See also: [DataHub Quickstart](https://docs.datahub.com/docs/quickstart) · [DataHub MCP](https://docs.datahub.com/docs/features/feature-guides/mcp) · [DataHub Skills](https://docs.datahub.com/docs/dev-guides/agent-context/skills)
 
-### Web demo (optional)
+### Web demo
+
+No extra deps (stdlib server):
 
 ```bash
-pip install -e ".[web]"
-uvicorn apps.web.app:app --host 0.0.0.0 --port 8088
+kp web
+# or:
+python -m known_path.webapp --port 8088
 # open http://127.0.0.1:8088
+```
+
+Buttons: **Baseline** · **Known path** · **Fail closed** · **Run full demo**.  
+Catalog + CSV samples load from `datasets/demo-finance/`.
+
+```bash
+kp dataset   # list assets + path
 ```
 
 ---
@@ -189,11 +199,13 @@ Example Cursor / Claude MCP snippet:
 known-path/
 ├── assets/                 # logo + diagrams
 ├── cards/                  # route sheets (YAML)
+├── datasets/demo-finance/  # demo catalog.json + CSV samples
 ├── docs/HACKATHON.md       # Devpost compliance map
+├── docs/demo-recording/    # recorded demo video + evidence
 ├── examples/               # SQL + run records
 ├── skills/known-path/      # agent skill
-├── src/known_path/         # library + CLI + MCP
-├── apps/web/               # thin demo UI
+├── src/known_path/         # library + CLI + MCP + web
+├── apps/web/               # optional FastAPI wrapper
 └── tests/                  # real scoring/activation tests
 ```
 
