@@ -1,0 +1,97 @@
+<!DOCTYPE html><html><head><meta charset=utf-8>
+<title>known-path live demo capture</title>
+<style>
+body{font-family:system-ui,sans-serif;background:#0f172a;color:#e2e8f0;margin:0;padding:24px}
+h1{color:#f8fafc;margin:0 0 8px}
+.sub{color:#94a3b8;margin-bottom:24px}
+.card{background:#1e293b;border-radius:12px;padding:16px;margin:16px 0}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:6px;border-bottom:1px solid #334155}
+.st{color:#6ee7b7}
+pre{background:#020617;padding:12px;border-radius:8px;overflow:auto;font-size:12px;color:#a7f3d0}
+.metrics td{padding:10px}
+.badge{display:inline-block;background:#0f766e;color:#fff;padding:4px 10px;border-radius:999px;font-size:12px}
+</style></head><body>
+<span class=badge>REAL RUN CAPTURE</span>
+<h1>known-path demo</h1>
+<p class=sub>Captured from <code>kp demo</code> · github.com/SeraKah-1/known-path · DataHub Agent Hackathon</p>
+<div class=card><h2>Metrics</h2>
+<table class=metrics>
+<tr><th>Mode</th><th>Status</th><th>Fetches</th><th>Trap?</th></tr>
+<tr><td>baseline</td><td>SUCCESS</td><td>5</td><td>yes (revenue_old)</td></tr>
+<tr><td>known-path</td><td>SUCCESS</td><td>2</td><td>no</td></tr>
+<tr><td>blocked</td><td>BLOCKED_TRUST</td><td>0</td><td>no · fail closed</td></tr>
+</table></div>
+
+    <div class='card'>
+      <h2>baseline · <span class='st'>SUCCESS</span></h2>
+      <p>Baseline thrash: 5 fetches, activated 4 (no route sheet, weak trust).</p>
+      <p class='meta'>fetches=5 · activated=4</p>
+      <table><tr><th>On</th><th>Name</th><th>Rel</th><th>Trust</th><th>Reasons</th></tr><tr><td>●</td><td>finance.revenue_old</td><td>3</td><td>yellow</td><td>lexical_hits:3, baseline_no_trust_gate, ignored_deprecated</td></tr><tr><td>●</td><td>finance.rev_backup</td><td>3</td><td>green</td><td>lexical_hits:1, baseline_no_trust_gate, junk_suffix_boost</td></tr><tr><td>●</td><td>finance.revenue_canonical</td><td>3</td><td>green</td><td>lexical_hits:4, baseline_no_trust_gate</td></tr><tr><td>●</td><td>dim.region</td><td>2</td><td>green</td><td>lexical_hits:2, baseline_no_trust_gate</td></tr><tr><td>·</td><td>ops.pipeline_metrics</td><td>0</td><td>green</td><td>lexical_hits:0, baseline_no_trust_gate</td></tr></table>
+    </div>
+<pre>-- known-path generated SQL
+-- job: job.revenue_by_region_quarter
+-- intent: revenue by region last quarter Finance canonical
+-- mode: baseline-naive
+-- fact_urn: urn:li:dataset:(urn:li:dataPlatform:snowflake,finance.revenue_old,PROD)
+-- fact_name: finance.revenue_old
+-- dim_urn: urn:li:dataset:(urn:li:dataPlatform:snowflake,finance.rev_backup,PROD)
+-- dim_name: finance.rev_backup
+
+SELECT
+  d.region AS region,
+  SUM(f.dt) AS revenue
+FROM finance.revenue_old AS f
+JOIN finance.rev_backup AS d
+  ON f.region_id = d.region_id
+GROUP BY 1
+ORDER BY 2 DESC;
+
+</pre>
+
+    <div class='card'>
+      <h2>known-path · <span class='st'>SUCCESS</span></h2>
+      <p>Activated 2 node(s); 2 entity fetch(es).</p>
+      <p class='meta'>fetches=2 · activated=2</p>
+      <table><tr><th>On</th><th>Name</th><th>Rel</th><th>Trust</th><th>Reasons</th></tr><tr><td>●</td><td>finance.revenue_canonical</td><td>3</td><td>green</td><td>listed_on_route_sheet, role:metric_fact, trust_ok</td></tr><tr><td>●</td><td>dim.region</td><td>3</td><td>green</td><td>listed_on_route_sheet, role:region_dim, trust_ok</td></tr></table>
+    </div>
+<pre>-- known-path generated SQL
+-- job: job.revenue_by_region_quarter
+-- intent: revenue by region last quarter Finance canonical
+-- mode: route-sheet
+-- fact_urn: urn:li:dataset:(urn:li:dataPlatform:snowflake,finance.revenue_canonical,PROD)
+-- fact_name: finance.revenue_canonical
+-- dim_urn: urn:li:dataset:(urn:li:dataPlatform:snowflake,dim.region,PROD)
+-- dim_name: dim.region
+
+SELECT
+  d.region_name AS region,
+  SUM(f.revenue_amount) AS revenue
+FROM finance.revenue_canonical AS f
+JOIN dim.region AS d
+  ON f.region_id = d.region_id
+WHERE f.order_date >= DATE_TRUNC('quarter', CURRENT_DATE - INTERVAL '1 quarter')
+  AND f.order_date <  DATE_TRUNC('quarter', CURRENT_DATE)
+GROUP BY 1
+ORDER BY 2 DESC;
+
+</pre>
+
+    <div class='card'>
+      <h2>blocked · <span class='st'>BLOCKED_TRUST</span></h2>
+      <p>Stopped: required asset failed trust check (finance.revenue_canonical). Will not invent a replacement table.</p>
+      <p class='meta'>fetches=0 · activated=0</p>
+      <table><tr><th>On</th><th>Name</th><th>Rel</th><th>Trust</th><th>Reasons</th></tr><tr><td>·</td><td>finance.revenue_canonical</td><td>3</td><td>red</td><td>listed_on_route_sheet, role:metric_fact, deprecated</td></tr><tr><td>·</td><td>dim.region</td><td>3</td><td>green</td><td>listed_on_route_sheet, role:region_dim, trust_ok</td></tr></table>
+    </div>
+<div class=card><h2>Write-back note</h2><pre># known-path route: job.revenue_by_region_quarter (BLOCKED_TRUST)
+
+mode: blocked
+intent: revenue by region last quarter Finance canonical
+status: BLOCKED_TRUST
+chosen_urns: []
+entity_fetches: 0
+note: blocked:job.revenue_by_region_quarter: red trust on finance.revenue_canonical
+message: Stopped: required asset failed trust check (finance.revenue_canonical). Will not invent a replacement table.
+
+</pre></div>
+</body></html>

@@ -1,0 +1,6 @@
+╭──────────────────── doctor ────────────────────╮
+│ known-path 0.1.0                               │
+│ repo: /root/known-path                         │
+│ catalog: fixture-catalog (5 assets)            │
+│ card: cards/job.revenue_by_region_quarter.yaml │
+╰────────────────────────────────────────────────╯

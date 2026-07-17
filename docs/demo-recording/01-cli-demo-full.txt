@@ -1,0 +1,113 @@
+───────────────────────── 1/3 Baseline (naive thrash) ──────────────────────────
+╭──────────────────── job.revenue_by_region_quarter ────────────────────╮
+│ SUCCESS  mode=baseline                                                │
+│ Baseline thrash: 5 fetches, activated 4 (no route sheet, weak trust). │
+│ fetches=5  activated=4                                                │
+╰───────────────────────────────────────────────────────────────────────╯
+┏━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ On ┃ Name                      ┃ Rel ┃ Trust  ┃ Reasons                      ┃
+┡━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ ●  │ finance.revenue_old       │ 3   │ yellow │ lexical_hits:3,              │
+│    │                           │     │        │ baseline_no_trust_gate,      │
+│    │                           │     │        │ ignored_deprecated,          │
+│    │                           │     │        │ junk_suffix_boost            │
+│ ●  │ finance.rev_backup        │ 3   │ green  │ lexical_hits:1,              │
+│    │                           │     │        │ baseline_no_trust_gate,      │
+│    │                           │     │        │ junk_suffix_boost            │
+│ ●  │ finance.revenue_canonical │ 3   │ green  │ lexical_hits:4,              │
+│    │                           │     │        │ baseline_no_trust_gate       │
+│ ●  │ dim.region                │ 2   │ green  │ lexical_hits:2,              │
+│    │                           │     │        │ baseline_no_trust_gate       │
+│ ·  │ ops.pipeline_metrics      │ 0   │ green  │ lexical_hits:0,              │
+│    │                           │     │        │ baseline_no_trust_gate       │
+└────┴───────────────────────────┴─────┴────────┴──────────────────────────────┘
+╭──────────────────────────────── SQL artifact ────────────────────────────────╮
+│ -- known-path generated SQL                                                  │
+│ -- job: job.revenue_by_region_quarter                                        │
+│ -- intent: revenue by region last quarter Finance canonical                  │
+│ -- mode: baseline-naive                                                      │
+│ -- fact_urn:                                                                 │
+│ urn:li:dataset:(urn:li:dataPlatform:snowflake,finance.revenue_old,PROD)      │
+│ -- fact_name: finance.revenue_old                                            │
+│ -- dim_urn:                                                                  │
+│ urn:li:dataset:(urn:li:dataPlatform:snowflake,finance.rev_backup,PROD)       │
+│ -- dim_name: finance.rev_backup                                              │
+│                                                                              │
+│ SELECT                                                                       │
+│   d.region AS region,                                                        │
+│   SUM(f.dt) AS revenue                                                       │
+│ FROM finance.revenue_old AS f                                                │
+│ JOIN finance.rev_backup AS d                                                 │
+│   ON f.region_id = d.region_id                                               │
+│ GROUP BY 1                                                                   │
+│ ORDER BY 2 DESC;                                                             │
+│                                                                              │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+───────────────────────── 2/3 Known path (route sheet) ─────────────────────────
+╭───── job.revenue_by_region_quarter ──────╮
+│ SUCCESS  mode=known-path                 │
+│ Activated 2 node(s); 2 entity fetch(es). │
+│ fetches=2  activated=2                   │
+╰──────────────────────────────────────────╯
+┏━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ On ┃ Name                      ┃ Rel ┃ Trust ┃ Reasons                       ┃
+┡━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━╇━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ ●  │ finance.revenue_canonical │ 3   │ green │ listed_on_route_sheet,        │
+│    │                           │     │       │ role:metric_fact, trust_ok    │
+│ ●  │ dim.region                │ 3   │ green │ listed_on_route_sheet,        │
+│    │                           │     │       │ role:region_dim, trust_ok     │
+└────┴───────────────────────────┴─────┴───────┴───────────────────────────────┘
+╭──────────────────────────────── SQL artifact ────────────────────────────────╮
+│ -- known-path generated SQL                                                  │
+│ -- job: job.revenue_by_region_quarter                                        │
+│ -- intent: revenue by region last quarter Finance canonical                  │
+│ -- mode: route-sheet                                                         │
+│ -- fact_urn:                                                                 │
+│ urn:li:dataset:(urn:li:dataPlatform:snowflake,finance.revenue_canonical,PROD │
+│ )                                                                            │
+│ -- fact_name: finance.revenue_canonical                                      │
+│ -- dim_urn: urn:li:dataset:(urn:li:dataPlatform:snowflake,dim.region,PROD)   │
+│ -- dim_name: dim.region                                                      │
+│                                                                              │
+│ SELECT                                                                       │
+│   d.region_name AS region,                                                   │
+│   SUM(f.revenue_amount) AS revenue                                           │
+│ FROM finance.revenue_canonical AS f                                          │
+│ JOIN dim.region AS d                                                         │
+│   ON f.region_id = d.region_id                                               │
+│ WHERE f.order_date >= DATE_TRUNC('quarter', CURRENT_DATE - INTERVAL '1       │
+│ quarter')                                                                    │
+│   AND f.order_date <  DATE_TRUNC('quarter', CURRENT_DATE)                    │
+│ GROUP BY 1                                                                   │
+│ ORDER BY 2 DESC;                                                             │
+│                                                                              │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+───────────────────────── 3/3 Fail closed (trust red) ──────────────────────────
+╭─────────────────────── job.revenue_by_region_quarter ────────────────────────╮
+│ BLOCKED_TRUST  mode=blocked                                                  │
+│ Stopped: required asset failed trust check (finance.revenue_canonical). Will │
+│ not invent a replacement table.                                              │
+│ fetches=0  activated=0                                                       │
+╰──────────────────────────────────────────────────────────────────────────────╯
+┏━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ On ┃ Name                      ┃ Rel ┃ Trust ┃ Reasons                       ┃
+┡━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━╇━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ ·  │ finance.revenue_canonical │ 3   │ red   │ listed_on_route_sheet,        │
+│    │                           │     │       │ role:metric_fact, deprecated  │
+│ ·  │ dim.region                │ 3   │ green │ listed_on_route_sheet,        │
+│    │                           │     │       │ role:region_dim, trust_ok     │
+└────┴───────────────────────────┴─────┴───────┴───────────────────────────────┘
+                           Demo metrics                           
+┏━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Mode       ┃ Status        ┃ Fetches ┃ Activated ┃ Chose trap? ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│ baseline   │ SUCCESS       │ 5       │ 4         │ yes         │
+│ known-path │ SUCCESS       │ 2       │ 2         │ no          │
+│ blocked    │ BLOCKED_TRUST │ 0       │ 0         │ no          │
+└────────────┴───────────────┴─────────┴───────────┴─────────────┘
+
+Artifacts: /root/known-path/examples
+  - baseline_wrong.sql / revenue_by_region.sql
+  - runs/last_*.json
