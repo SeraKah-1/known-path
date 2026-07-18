@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import urllib.error
 import urllib.request
 from typing import Any
@@ -80,37 +81,94 @@ After tools, summarize: status, assets lit, fetches, whether a trap was hit, and
 When reasoning, keep internal chain-of-thought brief; the UI shows tool progress separately.
 """
 
+# Strip model thinking blocks from visible answer when they leak into content
+_THINK_BLOCK_RE = re.compile(
+    r"<(?:think|thinking|reasoning|redacted_reasoning)>\s*(.*?)\s*</(?:think|thinking|reasoning|redacted_reasoning)>",
+    re.DOTALL | re.IGNORECASE,
+)
+_THINK_FENCE_RE = re.compile(
+    r"```(?:thinking|reasoning|thought)\s*(.*?)```",
+    re.DOTALL | re.IGNORECASE,
+)
 
-def _extract_reasoning(msg: dict[str, Any]) -> str:
-    """Pull model reasoning/thinking from common gateway fields."""
-    chunks: list[str] = []
-    for key in (
-        "reasoning",
-        "reasoning_content",
-        "thinking",
-        "reasoning_text",
-        "thought",
-    ):
-        val = msg.get(key)
-        if isinstance(val, str) and val.strip():
-            chunks.append(val.strip())
-        elif isinstance(val, list):
-            for item in val:
-                if isinstance(item, str) and item.strip():
-                    chunks.append(item.strip())
-                elif isinstance(item, dict):
-                    t = item.get("text") or item.get("content") or ""
-                    if t:
-                        chunks.append(str(t).strip())
-    # OpenAI-ish reasoning details
-    details = msg.get("reasoning_details") or msg.get("reasoning_content_details")
-    if isinstance(details, list):
-        for item in details:
-            if isinstance(item, dict):
-                t = item.get("text") or item.get("content") or ""
+
+def _collect_str_chunks(val: Any, into: list[str]) -> None:
+    if isinstance(val, str) and val.strip():
+        into.append(val.strip())
+    elif isinstance(val, list):
+        for item in val:
+            if isinstance(item, str) and item.strip():
+                into.append(item.strip())
+            elif isinstance(item, dict):
+                t = item.get("text") or item.get("content") or item.get("thinking") or ""
                 if t:
-                    chunks.append(str(t).strip())
-    return "\n\n".join(chunks).strip()
+                    into.append(str(t).strip())
+    elif isinstance(val, dict):
+        t = val.get("text") or val.get("content") or val.get("thinking") or ""
+        if t:
+            into.append(str(t).strip())
+
+
+def _extract_reasoning(msg: dict[str, Any], choice: dict[str, Any] | None = None) -> str:
+    """Pull model reasoning/thinking from common gateway fields (stream + non-stream)."""
+    chunks: list[str] = []
+    sources: list[dict[str, Any]] = [msg]
+    if isinstance(choice, dict):
+        sources.append(choice)
+    for src in sources:
+        for key in (
+            "reasoning",
+            "reasoning_content",
+            "thinking",
+            "reasoning_text",
+            "thought",
+            "reasoning_details",
+            "reasoning_content_details",
+        ):
+            if key in src:
+                _collect_str_chunks(src.get(key), chunks)
+    # content blocks (Anthropic-style / multi-part)
+    content = msg.get("content")
+    if isinstance(content, list):
+        for part in content:
+            if not isinstance(part, dict):
+                continue
+            ptype = str(part.get("type") or "")
+            if ptype in ("thinking", "reasoning", "thought"):
+                _collect_str_chunks(part.get("thinking") or part.get("text") or part.get("content"), chunks)
+    # Inline <think>…</think> / ```thinking fences inside string content
+    if isinstance(content, str) and content.strip():
+        for m in _THINK_BLOCK_RE.finditer(content):
+            if m.group(1).strip():
+                chunks.append(m.group(1).strip())
+        for m in _THINK_FENCE_RE.finditer(content):
+            if m.group(1).strip():
+                chunks.append(m.group(1).strip())
+    # de-dupe while preserving order
+    seen: set[str] = set()
+    out: list[str] = []
+    for c in chunks:
+        if c not in seen:
+            seen.add(c)
+            out.append(c)
+    return "\n\n".join(out).strip()
+
+
+def _strip_thinking_from_content(content: Any) -> str:
+    if content is None:
+        return ""
+    if isinstance(content, list):
+        texts = []
+        for part in content:
+            if isinstance(part, str):
+                texts.append(part)
+            elif isinstance(part, dict) and part.get("type") in (None, "text"):
+                texts.append(str(part.get("text") or part.get("content") or ""))
+        content = "".join(texts)
+    text = str(content)
+    text = _THINK_BLOCK_RE.sub("", text)
+    text = _THINK_FENCE_RE.sub("", text)
+    return text.strip()
 
 
 def _parse_sse_chat(raw: str) -> dict[str, Any]:
@@ -136,6 +194,11 @@ def _parse_sse_chat(raw: str) -> dict[str, Any]:
             model = chunk.get("model") or model
         choices = chunk.get("choices") if isinstance(chunk, dict) else None
         if not choices:
+            # some gateways stream top-level reasoning
+            if isinstance(chunk, dict):
+                for rk in ("reasoning", "reasoning_content", "thinking"):
+                    if chunk.get(rk):
+                        reasoning_parts.append(str(chunk[rk]))
             continue
         ch0 = choices[0] or {}
         delta = ch0.get("delta") or ch0.get("message") or {}
@@ -143,9 +206,17 @@ def _parse_sse_chat(raw: str) -> dict[str, Any]:
             role = delta["role"]
         if delta.get("content"):
             content_parts.append(str(delta["content"]))
-        for rk in ("reasoning", "reasoning_content", "thinking"):
+        for rk in ("reasoning", "reasoning_content", "thinking", "reasoning_text", "thought"):
             if delta.get(rk):
                 reasoning_parts.append(str(delta[rk]))
+        # content array deltas
+        c = delta.get("content")
+        if isinstance(c, list):
+            for part in c:
+                if isinstance(part, dict) and str(part.get("type") or "") in ("thinking", "reasoning"):
+                    t = part.get("thinking") or part.get("text") or ""
+                    if t:
+                        reasoning_parts.append(str(t))
         # tool_calls streaming
         for tc in delta.get("tool_calls") or []:
             idx = int(tc.get("index") or 0)
@@ -166,6 +237,12 @@ def _parse_sse_chat(raw: str) -> dict[str, Any]:
                 slot["function"]["arguments"] += fn["arguments"]
         if ch0.get("finish_reason"):
             finish = ch0.get("finish_reason")
+        # non-delta full message mid-stream
+        msg = ch0.get("message") or {}
+        if isinstance(msg, dict):
+            r = _extract_reasoning(msg, ch0)
+            if r:
+                reasoning_parts.append(r)
     message: dict[str, Any] = {"role": role, "content": "".join(content_parts) or None}
     if reasoning_parts:
         message["reasoning_content"] = "".join(reasoning_parts)
@@ -206,7 +283,8 @@ def _http_json(
     data = None if body is None else json.dumps(body).encode("utf-8")
     req = urllib.request.Request(url, data=data, method=method)
     req.add_header("Content-Type", "application/json")
-    req.add_header("Accept", "application/json")
+    # Accept both JSON and SSE so gateways that stream by default still work
+    req.add_header("Accept", "application/json, text/event-stream")
     if api_key:
         req.add_header("Authorization", f"Bearer {api_key}")
     try:
@@ -254,7 +332,6 @@ def test_datahub() -> dict[str, Any]:
             "mode": "offline",
             "message": "No GMS URL — using demo-finance offline catalog",
         }
-    # lightweight health: GraphQL or /health
     code, data = _http_json(
         "GET",
         f"{url}/health",
@@ -263,7 +340,6 @@ def test_datahub() -> dict[str, Any]:
     )
     if code == 200:
         return {"ok": True, "mode": "live", "message": f"GMS reachable at {url}", "detail": data}
-    # try config endpoint without auth
     code2, data2 = _http_json("GET", f"{url}/config", timeout=8.0)
     if code2 == 200:
         return {
@@ -311,6 +387,14 @@ def chat(messages: list[dict[str, Any]], *, max_tool_rounds: int = 4) -> dict[st
             "error": "Configure LLM base URL and model in Settings (and API key if required).",
             "messages": messages,
             "tool_traces": [],
+            "thinking": [
+                {
+                    "phase": "think",
+                    "title": "Missing model config",
+                    "detail": "Set base URL + model in Settings. API key is stored on the server and survives refresh.",
+                }
+            ],
+            "reasoning": "",
         }
 
     msgs: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}, *messages]
@@ -322,6 +406,7 @@ def chat(messages: list[dict[str, Any]], *, max_tool_rounds: int = 4) -> dict[st
 
     ui = load_settings().get("ui") or {}
     prefer_stream = bool(ui.get("stream_thinking", True))
+    show_thinking = bool(ui.get("show_thinking", True))
 
     def _completion_body(with_tools: bool, *, stream: bool) -> dict[str, Any]:
         # Prefer stream=True so reasoning tokens appear (many gateways only emit
@@ -339,72 +424,112 @@ def chat(messages: list[dict[str, Any]], *, max_tool_rounds: int = 4) -> dict[st
         b["reasoning"] = True
         b["reasoning_effort"] = "medium"
         b["include_reasoning"] = True
+        b["enable_thinking"] = True
         return b
 
-    def _call_completion(with_tools: bool) -> tuple[int, Any]:
-        # 1) streaming (thinking visible on most gateways)
-        if prefer_stream:
-            code_s, data_s = _http_json(
+    def _usable(code: int, data: Any) -> bool:
+        return code == 200 and isinstance(data, dict) and bool(data.get("choices"))
+
+    def _call_completion(with_tools: bool) -> tuple[int, Any, str]:
+        """Returns (code, data, transport) where transport is stream|json."""
+        # Always try stream first when stream_thinking is on — this is how
+        # thinking tokens usually arrive. Fall back to non-stream JSON.
+        order = [True, False] if prefer_stream else [False, True]
+        last_code, last_data, last_mode = 0, {}, "none"
+        for stream in order:
+            mode = "stream" if stream else "json"
+            code, data = _http_json(
                 "POST",
                 f"{base}/chat/completions",
                 api_key=key,
-                body=_completion_body(with_tools, stream=True),
+                body=_completion_body(with_tools, stream=stream),
                 timeout=180.0,
             )
-            if code_s == 200 and isinstance(data_s, dict) and data_s.get("choices"):
-                return code_s, data_s
-        # 2) non-stream JSON
-        code_j, data_j = _http_json(
-            "POST",
-            f"{base}/chat/completions",
-            api_key=key,
-            body=_completion_body(with_tools, stream=False),
-            timeout=180.0,
-        )
-        return code_j, data_j
+            last_code, last_data, last_mode = code, data, mode
+            if _usable(code, data):
+                return code, data, mode
+        return last_code, last_data, last_mode
 
     thinking_log.append(
         {
             "phase": "think",
             "title": "Planning",
-            "detail": f"Model `{model}` · tools on · stream_thinking={prefer_stream}",
+            "detail": (
+                f"Model `{model}` · tools on · "
+                f"stream_thinking={prefer_stream} · key={'set' if key else 'missing'}"
+            ),
         }
     )
 
     for round_i in range(max_tool_rounds):
-        code, data = _call_completion(True)
-        if code != 200 or (isinstance(data, dict) and data.get("error") and not data.get("choices")):
+        code, data, transport = _call_completion(True)
+        if not _usable(code, data) or (isinstance(data, dict) and data.get("error") and not data.get("choices")):
             # Retry once without tools (some models/gateways choke on tools)
-            code2, data2 = _call_completion(False)
-            if code2 == 200 and isinstance(data2, dict) and data2.get("choices"):
-                code, data = code2, data2
+            code2, data2, transport2 = _call_completion(False)
+            if _usable(code2, data2):
+                code, data, transport = code2, data2, transport2
             else:
-                err = data if code != 200 else data2
+                err = data if not _usable(code, data) else data2
                 return {
                     "ok": False,
                     "error": err,
-                    "status": code if code != 200 else code2,
+                    "status": code if not _usable(code, data) else code2,
                     "tool_traces": traces,
-                    "thinking": thinking_log,
+                    "thinking": thinking_log
+                    + [
+                        {
+                            "phase": "error",
+                            "title": "LLM request failed",
+                            "detail": f"transport={transport}/{transport2} status={code}/{code2}",
+                            "status": "error",
+                        }
+                    ],
                     "reasoning": "\n\n".join(reasoning_bits),
                     "messages": msgs,
-                    "hint": "Gateway must return JSON (stream:false) or SSE chat chunks.",
+                    "hint": "Gateway must return JSON (stream:false) or SSE chat chunks. Key stays on server.",
                 }
+
+        thinking_log.append(
+            {
+                "phase": "think",
+                "title": f"Round {round_i + 1} · {transport}",
+                "detail": f"Got completion via {transport}",
+            }
+        )
+
         choice = (data.get("choices") or [{}])[0]
         msg = choice.get("message") or {}
-        reason = _extract_reasoning(msg)
-        if reason:
+        reason = _extract_reasoning(msg, choice)
+        if not reason and isinstance(data, dict):
+            reason = _extract_reasoning(data, choice)
+        if reason and show_thinking:
             reasoning_bits.append(reason)
             thinking_log.append(
                 {
                     "phase": "reason",
                     "title": f"Reasoning (round {round_i + 1})",
-                    "detail": reason[:4000],
+                    "detail": reason[:6000],
                 }
             )
+        elif show_thinking and not reason:
+            thinking_log.append(
+                {
+                    "phase": "think",
+                    "title": f"No model reasoning field (round {round_i + 1})",
+                    "detail": (
+                        f"Transport={transport}. Many models only expose thinking over stream; "
+                        "tool steps below still show what the agent is doing."
+                    ),
+                }
+            )
+
         tool_calls = msg.get("tool_calls") or []
         if not tool_calls:
-            content = msg.get("content") or ""
+            raw_content = msg.get("content") or ""
+            content = _strip_thinking_from_content(raw_content)
+            # if all reasoning was only in content tags and answer empty, keep a short note
+            if not content and reason:
+                content = "_(Reasoning only — see Thinking panel.)_"
             thinking_log.append(
                 {"phase": "done", "title": "Answer ready", "detail": "No more tool calls"}
             )
@@ -412,16 +537,18 @@ def chat(messages: list[dict[str, Any]], *, max_tool_rounds: int = 4) -> dict[st
                 "ok": True,
                 "content": content,
                 "tool_traces": traces,
-                "thinking": thinking_log,
-                "reasoning": "\n\n".join(reasoning_bits),
+                "thinking": thinking_log if show_thinking else [],
+                "reasoning": "\n\n".join(reasoning_bits) if show_thinking else "",
                 "plan": last_plan,
                 "plans": plans,
+                "transport": transport,
                 "messages": msgs + [{"role": "assistant", "content": content}],
             }
 
+        # Keep tool-call message as returned (model may need exact shape)
         msgs.append(msg)
         for tc in tool_calls:
-            fn = (tc.get("function") or {})
+            fn = tc.get("function") or {}
             name = fn.get("name") or ""
             try:
                 args = json.loads(fn.get("arguments") or "{}")
@@ -466,7 +593,6 @@ def chat(messages: list[dict[str, Any]], *, max_tool_rounds: int = 4) -> dict[st
                 last_plan = result["plan"]
             if result.get("plans"):
                 plans = result["plans"]
-            # Compact tool result for model context (keep plan summary, drop huge SQL if needed)
             compact = {
                 "ok": result.get("ok"),
                 "command": result.get("command"),
@@ -489,8 +615,8 @@ def chat(messages: list[dict[str, Any]], *, max_tool_rounds: int = 4) -> dict[st
         "ok": True,
         "content": "Stopped after max tool rounds. See tool progress.",
         "tool_traces": traces,
-        "thinking": thinking_log,
-        "reasoning": "\n\n".join(reasoning_bits),
+        "thinking": thinking_log if show_thinking else [],
+        "reasoning": "\n\n".join(reasoning_bits) if show_thinking else "",
         "plan": last_plan,
         "plans": plans,
         "messages": msgs,

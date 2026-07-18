@@ -10,7 +10,7 @@ from typing import Any
 
 from known_path.runner import default_repo_root
 
-SAFE_NAME = re.compile(r"^[a-zA-Z0-9_\\-]{1,64}$")
+SAFE_NAME = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
 
 
 def datasets_root() -> Path:
@@ -57,21 +57,29 @@ def set_active_dataset(dataset_id: str) -> dict[str, Any]:
     return {"ok": True, "active": dataset_id, "datasets": list_datasets()}
 
 
-def upload_catalog_json(name: str, content: str) -> dict[str, Any]:
-    """Save a catalog.json pack (full assets list)."""
+def upload_catalog_json(name: str, content: str, *, allow_empty: bool = False) -> dict[str, Any]:
+    """Save a catalog.json pack (assets list). Empty assets allowed for new pack scaffolding."""
     if not SAFE_NAME.match(name):
         return {"ok": False, "error": "use simple id: letters, numbers, _ -"}
     try:
         data = json.loads(content)
     except json.JSONDecodeError as e:
         return {"ok": False, "error": f"invalid JSON: {e}"}
-    if not isinstance(data.get("assets"), list) or not data["assets"]:
-        return {"ok": False, "error": "JSON must include non-empty assets[]"}
+    assets = data.get("assets")
+    if not isinstance(assets, list):
+        return {"ok": False, "error": "JSON must include assets[] array"}
+    if not assets and not allow_empty:
+        return {
+            "ok": False,
+            "error": "JSON must include non-empty assets[] (or create an empty pack from the UI)",
+        }
+    data.setdefault("id", name)
+    data.setdefault("title", name)
     dest = datasets_root() / name
     dest.mkdir(parents=True, exist_ok=True)
     (dest / "catalog.json").write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     set_active_dataset(name)
-    return {"ok": True, "active": name, "assets": len(data["assets"])}
+    return {"ok": True, "active": name, "assets": len(assets)}
 
 
 def upload_csv(dataset_id: str, filename: str, content: str) -> dict[str, Any]:

@@ -653,9 +653,38 @@ table.t tr:last-child td {{ border-bottom: 0; }}
 }}
 .ds-bar .btn {{ font-size: .72rem; padding: .35rem .6rem; }}
 .key-status {{
-  font-size: .72rem; color: var(--sage); font-weight: 600;
+  font-size: .72rem; color: var(--sage); font-weight: 600; white-space: nowrap;
 }}
 .key-status.off {{ color: var(--rose); }}
+.cfg-pill {{
+  font-size: .72rem; color: var(--ink-3); background: var(--paper-2);
+  border: 1px solid var(--line); border-radius: 999px; padding: .2rem .55rem;
+  max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}}
+.cfg-pill.ok {{ color: var(--sage); border-color: #c5ddc9; background: var(--sage-soft); }}
+.cfg-pill.bad {{ color: var(--rose); border-color: #e8c5c0; background: var(--rose-soft); }}
+.field.secret-locked input:disabled {{
+  opacity: .65; background: var(--paper-2);
+}}
+.secret-row {{
+  display: flex; gap: .5rem; align-items: center; flex-wrap: wrap;
+  margin: -.25rem 0 .65rem; font-size: .78rem; color: var(--ink-3);
+}}
+.secret-row label {{ display: flex; gap: .35rem; align-items: center; cursor: pointer; }}
+.secret-row .hint-saved {{
+  color: var(--sage); font-weight: 600;
+}}
+.toggle-row {{
+  display: flex; flex-direction: column; gap: .4rem;
+  margin: 0 0 .85rem; padding: .65rem .75rem;
+  background: var(--paper); border: 1px solid var(--line); border-radius: 12px;
+}}
+.toggle-row label {{
+  display: flex; gap: .45rem; align-items: center;
+  font-size: .82rem; color: var(--ink-2); cursor: pointer;
+}}
+.msg.think {{ align-self: stretch; max-width: 100%; }}
+.msg.think .think {{ margin: 0; }}
 </style>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"/>
 <script defer src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
@@ -675,6 +704,8 @@ table.t tr:last-child td {{ border-bottom: 0; }}
       known-path <em>workbench</em>
     </div>
     <div class="top-right">
+      <span class="cfg-pill" id="cfgModel" title="Active model">model · —</span>
+      <span class="cfg-pill" id="cfgKey" title="API key status on server">key · —</span>
       <span class="pill" id="dsLabel">demo-finance</span>
       <button class="icon-btn" onclick="openSettings()" title="Settings" aria-label="Settings">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
@@ -840,21 +871,46 @@ table.t tr:last-child td {{ border-bottom: 0; }}
 <div class="modal-bg" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="setTitle">
   <div class="modal">
     <h2 id="setTitle">Settings</h2>
-    <p class="sub">Connect a model and optional DataHub. Keys stay on this machine.</p>
+    <p class="sub">Keys are stored on the <strong>server</strong> under <code>.known-path/</code> — not wiped on browser refresh. Leave secret fields blank to keep the saved value.</p>
     <div class="field"><label>Model endpoint (OpenAI-compatible)</label><input id="sBase" placeholder="https://api.openai.com/v1"/></div>
-    <div class="field"><label>API key</label><input id="sKey" type="password" placeholder="Stored locally only"/></div>
+    <div class="field secret-locked" id="sKeyField">
+      <label>API key</label>
+      <input id="sKey" type="password" placeholder="Stored on server only" autocomplete="off"/>
+    </div>
+    <div class="secret-row">
+      <span class="hint-saved" id="sKeySaved">No API key saved yet.</span>
+      <label><input type="checkbox" id="sKeyReplace" onchange="toggleSecretReplace('key')"/> Replace key</label>
+      <button type="button" class="btn quiet" style="font-size:.72rem;padding:.25rem .5rem" onclick="clearApiKey()">Clear key</button>
+    </div>
     <div style="display:flex;gap:.5rem;margin-bottom:.8rem;align-items:center">
       <button type="button" class="btn" onclick="fetchModels()">Fetch models</button>
       <select id="sModel" style="flex:1;background:var(--paper);border:1px solid var(--line-2);border-radius:10px;padding:.55rem .7rem"></select>
     </div>
     <div class="field"><label>DataHub GMS URL</label><input id="sGms" placeholder="http://localhost:8080"/></div>
-    <div class="field"><label>Personal Access Token</label><input id="sTok" type="password" placeholder="Bearer PAT"/></div>
+    <div class="field secret-locked" id="sTokField">
+      <label>Personal Access Token</label>
+      <input id="sTok" type="password" placeholder="Bearer PAT" autocomplete="off"/>
+    </div>
+    <div class="secret-row">
+      <span class="hint-saved" id="sTokSaved">No PAT saved.</span>
+      <label><input type="checkbox" id="sTokReplace" onchange="toggleSecretReplace('tok')"/> Replace PAT</label>
+    </div>
     <p class="hint">Automation uses a <strong>PAT</strong>, not browser OAuth. Create one in DataHub → Settings → Access Tokens.</p>
     <div style="display:flex;gap:.75rem;align-items:center;margin-bottom:.75rem">
       <label style="display:flex;gap:.4rem;align-items:center;font-size:.85rem;color:var(--ink-2)"><input type="checkbox" id="sLive"/> Use live DataHub</label>
       <button type="button" class="btn quiet" onclick="testDh()">Test</button>
     </div>
-    <div class="field"><label>Dataset pack</label><select id="sDs"></select></div>
+    <div class="field"><label>Active dataset pack</label><select id="sDs"></select></div>
+    <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin:0 0 .75rem">
+      <button type="button" class="btn" onclick="document.getElementById('fileCat').click()">Upload catalog JSON</button>
+      <button type="button" class="btn" onclick="document.getElementById('fileCsv').click()">Upload CSV</button>
+      <button type="button" class="btn quiet" onclick="createEmptyPack()">New empty pack</button>
+    </div>
+    <div class="toggle-row">
+      <label><input type="checkbox" id="sShowThink" checked/> Show Thinking panel (tools + model reasoning)</label>
+      <label><input type="checkbox" id="sStreamThink" checked/> Prefer stream for model thinking (SSE). Off = stream:false JSON only</label>
+      <p class="hint" style="margin:0">Tool steps always show even when the model returns no reasoning field. Stream is preferred because many gateways only emit thinking over SSE.</p>
+    </div>
     <p class="hint" id="setMsg"></p>
     <div class="modal-actions">
       <button type="button" class="btn quiet" onclick="closeSettings()">Cancel</button>
@@ -940,13 +996,18 @@ function addMsg(role, content, opts) {{
 function renderThinkingPanel(thinking, reasoning) {{
   const rows = [];
   (thinking || []).forEach(t => {{
-    const ph = t.phase === 'tool' ? 'tool' : (t.phase === 'reason' ? 'reason' : (t.phase === 'done' ? 'done' : (t.status === 'error' ? 'error' : 'tool')));
+    const ph = t.phase === 'tool' ? 'tool'
+      : (t.phase === 'reason' ? 'reason'
+      : (t.phase === 'done' ? 'done'
+      : (t.phase === 'error' || t.status === 'error' ? 'error' : 'tool')));
     rows.push(`<div class="think-row ${{ph}}"><div class="ph"></div><div><div class="tt">${{escapeHtml(t.title || t.phase || 'step')}}</div><div class="td">${{escapeHtml(t.detail || '')}}</div></div></div>`);
   }});
   if (reasoning && !(thinking || []).some(t => t.phase === 'reason')) {{
     rows.unshift(`<div class="think-row reason"><div class="ph"></div><div><div class="tt">Reasoning</div><div class="td">${{escapeHtml(reasoning)}}</div></div></div>`);
   }}
-  if (!rows.length) return null;
+  if (!rows.length) {{
+    rows.push(`<div class="think-row"><div class="ph"></div><div><div class="tt">No steps yet</div><div class="td">Waiting for tools or model reasoning…</div></div></div>`);
+  }}
   return `<details class="think" open><summary>Thinking &amp; tools · ${{rows.length}} steps</summary><div class="think-body">${{rows.join('')}}</div></details>`;
 }}
 function trapHit(plan) {{
@@ -1168,11 +1229,15 @@ async function sendAgent() {{
     }});
     const data = await r.json();
     thinking.remove();
-    const thinkHtml = renderThinkingPanel(data.thinking, data.reasoning);
+    // Always show Thinking panel (tools + reasoning) so stream:false still surfaces steps
+    const thinkHtml = renderThinkingPanel(data.thinking || [], data.reasoning || '');
     if (thinkHtml) addMsg('think', thinkHtml, {{ markdown: false }});
     (data.thinking || []).forEach(t => {{
-      if (t.phase === 'tool') pushFeed(`<strong>Tool</strong> · ${{escapeHtml(t.title || '')}} — ${{escapeHtml((t.detail||'').slice(0,120))}}`);
+      if (t.phase === 'tool' || t.phase === 'reason') {{
+        pushFeed(`<strong>${{t.phase === 'reason' ? 'Think' : 'Tool'}}</strong> · ${{escapeHtml(t.title || '')}} — ${{escapeHtml((t.detail||'').slice(0,120))}}`);
+      }}
     }});
+    if (data.reasoning) pushFeed(`<strong>Reasoning</strong> · ${{escapeHtml(String(data.reasoning).slice(0, 160))}}`);
     (data.tool_traces || []).forEach(tr => {{
       if (tr.command) appendCli(tr.command, {{ exit_code: tr.exit_code, duration_ms: tr.duration_ms }});
       pushFeed(`<strong>CLI</strong> · ${{escapeHtml(tr.command || tr.tool || '')}} · ${{tr.duration_ms||0}}ms`);
@@ -1199,28 +1264,46 @@ function quick(t) {{ $('prompt').value = t; sendAgent(); }}
 function updateKeyStatus() {{
   const s = BOOT.settings || {{}};
   const el = $('keyStatus');
-  if (!el) return;
-  if (s.llm && s.llm.api_key_set) {{
-    el.textContent = 'key · ' + (s.llm.api_key_hint || 'saved');
-    el.className = 'key-status';
-  }} else {{
-    el.textContent = 'key · not set';
-    el.className = 'key-status off';
+  const cfgKey = $('cfgKey');
+  const cfgModel = $('cfgModel');
+  const keyOk = !!(s.llm && s.llm.api_key_set);
+  const model = (s.llm && s.llm.model) || '';
+  if (el) {{
+    if (keyOk) {{
+      el.textContent = 'key · ' + (s.llm.api_key_hint || 'saved');
+      el.className = 'key-status';
+    }} else {{
+      el.textContent = 'key · not set';
+      el.className = 'key-status off';
+    }}
+  }}
+  if (cfgKey) {{
+    cfgKey.textContent = keyOk ? ('key · ' + (s.llm.api_key_hint || 'saved')) : 'key · not set';
+    cfgKey.className = 'cfg-pill ' + (keyOk ? 'ok' : 'bad');
+  }}
+  if (cfgModel) {{
+    cfgModel.textContent = model ? ('model · ' + model) : 'model · not set';
+    cfgModel.className = 'cfg-pill ' + (model ? 'ok' : 'bad');
+    cfgModel.title = (s.llm && s.llm.base_url) ? s.llm.base_url : 'No base URL';
   }}
 }}
-function setUiMode(mode) {{
+function setUiMode(mode, opts) {{
+  const persist = !(opts && opts.persist === false);
   const pane = $('taskPane');
   const ai = mode !== 'terminal';
   pane.classList.toggle('ai-on', ai);
   pane.classList.toggle('term-on', !ai);
   $('modeAi').classList.toggle('on', ai);
   $('modeTerm').classList.toggle('on', !ai);
-  // persist (does not wipe secrets)
+  if (!persist) return;
+  // persist mode only — never touch secrets
   fetch('/api/settings', {{
     method: 'POST',
     headers: {{ 'Content-Type': 'application/json' }},
     body: JSON.stringify({{ ui: {{ mode: ai ? 'ai' : 'terminal' }} }})
-  }}).then(r => r.json()).then(d => {{ if (d.public) BOOT.settings = d.public; }}).catch(() => {{}});
+  }}).then(r => r.json()).then(d => {{
+    if (d.public) {{ BOOT.settings = d.public; updateKeyStatus(); }}
+  }}).catch(() => {{}});
 }}
 async function switchDataset(id) {{
   if (!id) return;
@@ -1260,20 +1343,58 @@ async function termSubmit(ev) {{
   return false;
 }}
 
+function toggleSecretReplace(which) {{
+  if (which === 'key') {{
+    const on = $('sKeyReplace').checked;
+    $('sKey').disabled = !on;
+    if (!on) $('sKey').value = '';
+    else $('sKey').focus();
+  }} else {{
+    const on = $('sTokReplace').checked;
+    $('sTok').disabled = !on;
+    if (!on) $('sTok').value = '';
+    else $('sTok').focus();
+  }}
+}}
+async function clearApiKey() {{
+  if (!confirm('Remove the saved API key from the server?')) return;
+  const r = await fetch('/api/settings', {{
+    method: 'POST',
+    headers: {{ 'Content-Type': 'application/json' }},
+    body: JSON.stringify({{ llm: {{ clear_api_key: true }} }})
+  }});
+  const data = await r.json();
+  BOOT.settings = data.public || BOOT.settings;
+  updateKeyStatus();
+  openSettings();
+  toast('API key cleared');
+}}
 function openSettings() {{
   const s = BOOT.settings || {{}};
   $('sBase').value = (s.llm && s.llm.base_url) || '';
-  // Never put secret into the input — only placeholder hint
+  // Never put secret into the input — locked unless "Replace" is checked
+  $('sKeyReplace').checked = false;
   $('sKey').value = '';
+  $('sKey').disabled = true;
   $('sKey').placeholder = (s.llm && s.llm.api_key_set)
-    ? ((s.llm.api_key_hint || '•••• saved') + ' — leave blank to keep')
-    : 'API key (saved on server, not in the browser)';
+    ? ((s.llm.api_key_hint || '•••• saved') + ' — check Replace to change')
+    : 'Paste new API key (saved on server)';
+  $('sKeySaved').textContent = (s.llm && s.llm.api_key_set)
+    ? ('Saved on server: ' + (s.llm.api_key_hint || '••••'))
+    : 'No API key saved yet.';
   $('sGms').value = (s.datahub && s.datahub.gms_url) || '';
+  $('sTokReplace').checked = false;
   $('sTok').value = '';
+  $('sTok').disabled = true;
   $('sTok').placeholder = (s.datahub && s.datahub.token_set)
-    ? ((s.datahub.token_hint || '•••• saved') + ' — leave blank to keep')
+    ? ((s.datahub.token_hint || '•••• saved') + ' — check Replace to change')
     : 'PAT';
+  $('sTokSaved').textContent = (s.datahub && s.datahub.token_set)
+    ? ('Saved on server: ' + (s.datahub.token_hint || '••••'))
+    : 'No PAT saved.';
   $('sLive').checked = !!(s.datahub && s.datahub.use_live);
+  $('sShowThink').checked = !s.ui || s.ui.show_thinking !== false;
+  $('sStreamThink').checked = !s.ui || s.ui.stream_thinking !== false;
   const models = $('sModel'); models.innerHTML = '';
   if (s.llm && s.llm.model) {{
     const o = document.createElement('option'); o.value = s.llm.model; o.textContent = s.llm.model; models.appendChild(o);
@@ -1281,8 +1402,8 @@ function openSettings() {{
   refreshDsSelect();
   updateKeyStatus();
   $('setMsg').textContent = (s.llm && s.llm.api_key_set)
-    ? 'API key is saved on the server. Leave the field blank when saving other options.'
-    : 'No API key saved yet.';
+    ? 'Key survives refresh. Blank + Save keeps it. Use Replace only to change the key.'
+    : 'No API key saved yet — check Replace, paste key, then Save.';
   $('settingsModal').classList.add('open');
 }}
 function closeSettings() {{ $('settingsModal').classList.remove('open'); }}
@@ -1293,7 +1414,7 @@ function refreshDsSelect() {{
     sel.innerHTML = '';
     (BOOT.datasets || []).forEach(d => {{
       const o = document.createElement('option');
-      o.value = d.id; o.textContent = d.id + ' · ' + d.assets + ' assets';
+      o.value = d.id; o.textContent = d.id + ' · ' + d.assets + ' assets' + (d.csv_files && d.csv_files.length ? ' · ' + d.csv_files.length + ' csv' : '');
       if (d.id === (BOOT.active || cur)) o.selected = true;
       sel.appendChild(o);
     }});
@@ -1315,7 +1436,7 @@ async function fetchModels() {{
     return;
   }}
   const sel = $('sModel');
-  const prev = sel.value;
+  const prev = sel.value || ((BOOT.settings && BOOT.settings.llm && BOOT.settings.llm.model) || '');
   sel.innerHTML = '';
   (data.models || []).forEach(id => {{
     const o = document.createElement('option'); o.value = id; o.textContent = id;
@@ -1332,7 +1453,8 @@ async function testDh() {{
   $('setMsg').textContent = data.message || JSON.stringify(data);
 }}
 async function saveSettings(quiet) {{
-  // Only include secrets when user typed a new value (never send masked placeholders)
+  // Secrets only sent when Replace is checked AND field non-empty.
+  // Blank secret fields are never posted → server keeps existing key.
   const body = {{
     llm: {{
       base_url: $('sBase').value.trim(),
@@ -1343,18 +1465,22 @@ async function saveSettings(quiet) {{
     dataset: {{ active: $('sDs').value || BOOT.active }},
     ui: {{
       mode: ($('taskPane').classList.contains('term-on') ? 'terminal' : 'ai'),
-      show_thinking: true,
-      stream_thinking: true,
+      show_thinking: !!$('sShowThink').checked,
+      stream_thinking: !!$('sStreamThink').checked,
     }}
   }};
   const model = ($('sModel').value || '').trim();
   if (model) body.llm.model = model;
   const gms = $('sGms').value.trim();
   if (gms) body.datahub.gms_url = gms;
-  const key = $('sKey').value.trim();
-  if (key && !key.startsWith('•')) body.llm.api_key = key;
-  const tok = $('sTok').value.trim();
-  if (tok && !tok.startsWith('•')) body.datahub.token = tok;
+  if ($('sKeyReplace') && $('sKeyReplace').checked) {{
+    const key = ($('sKey').value || '').trim();
+    if (key && !key.startsWith('•') && !key.startsWith('*')) body.llm.api_key = key;
+  }}
+  if ($('sTokReplace') && $('sTokReplace').checked) {{
+    const tok = ($('sTok').value || '').trim();
+    if (tok && !tok.startsWith('•') && !tok.startsWith('*')) body.datahub.token = tok;
+  }}
 
   const r = await fetch('/api/settings', {{ method: 'POST', headers: {{ 'Content-Type': 'application/json' }}, body: JSON.stringify(body) }});
   const data = await r.json();
@@ -1364,7 +1490,8 @@ async function saveSettings(quiet) {{
   refreshDsSelect();
   updateKeyStatus();
   if (!quiet) {{
-    toast(BOOT.settings.llm && BOOT.settings.llm.api_key_set ? 'Saved (key kept)' : 'Saved');
+    const kept = BOOT.settings.llm && BOOT.settings.llm.api_key_set;
+    toast(kept ? 'Saved · key still on server' : 'Saved');
     closeSettings();
   }}
   return data;
@@ -1379,6 +1506,20 @@ async function loadDatasetPack(id) {{
     toast('Using ' + id);
     pushFeed(`<strong>Dataset</strong> · ${{escapeHtml(id)}}`);
     setJit('Dataset switched', 'Active pack: ' + id, 'ok');
+  }} else toast(data.error || 'Failed');
+}}
+async function createEmptyPack() {{
+  const name = prompt('New pack id (letters, numbers, _ -)', 'pack-' + Date.now().toString(36).slice(-5));
+  if (!name) return;
+  const stub = JSON.stringify({{ id: name, title: name, assets: [] }}, null, 2);
+  const r = await fetch('/api/datasets/upload/catalog', {{ method: 'POST', headers: {{ 'Content-Type': 'application/json' }}, body: JSON.stringify({{ name, content: stub, allow_empty: true }}) }});
+  const data = await r.json();
+  if (data.ok) {{
+    BOOT.active = name;
+    BOOT.datasets = await (await fetch('/api/datasets')).json();
+    refreshDsSelect();
+    toast('Created pack ' + name + ' — upload catalog with assets or CSV next');
+    pushFeed(`<strong>Dataset</strong> · new pack ${{escapeHtml(name)}}`);
   }} else toast(data.error || 'Failed');
 }}
 async function onUploadCatalog(ev) {{
@@ -1400,7 +1541,6 @@ async function onUploadCatalog(ev) {{
 async function onUploadCsv(ev) {{
   const f = ev.target.files[0]; if (!f) return;
   const text = await f.text();
-  // allow choosing target pack
   const pack = prompt('Save CSV into which dataset pack?', BOOT.active || 'demo-finance');
   if (!pack) return;
   const r = await fetch('/api/datasets/upload/csv', {{ method: 'POST', headers: {{ 'Content-Type': 'application/json' }}, body: JSON.stringify({{ dataset_id: pack, filename: f.name, content: text }}) }});
@@ -1414,16 +1554,27 @@ async function onUploadCsv(ev) {{
   ev.target.value = '';
 }}
 
+async function hydrateSettings() {{
+  try {{
+    const r = await fetch('/api/settings');
+    const s = await r.json();
+    BOOT.settings = s;
+    if (s.dataset && s.dataset.active) BOOT.active = s.dataset.active;
+    const packs = await (await fetch('/api/datasets')).json();
+    if (Array.isArray(packs)) BOOT.datasets = packs;
+  }} catch (e) {{ /* keep BOOT */ }}
+  refreshDsSelect();
+  updateKeyStatus();
+  const mode = (BOOT.settings && BOOT.settings.ui && BOOT.settings.ui.mode) || 'ai';
+  setUiMode(mode === 'terminal' ? 'terminal' : 'ai', {{ persist: false }});
+}}
+
 // boot
 refreshDsSelect();
 updateKeyStatus();
 drawGraph({{ nodes: [] }});
 drawDonut({{ nodes: [] }});
-// restore UI mode
-(function() {{
-  const mode = (BOOT.settings && BOOT.settings.ui && BOOT.settings.ui.mode) || 'ai';
-  setUiMode(mode === 'terminal' ? 'terminal' : 'ai');
-}})();
+hydrateSettings();
 $('prompt').addEventListener('keydown', (e) => {{
   if (e.key === 'Enter' && !e.shiftKey) {{ e.preventDefault(); sendAgent(); }}
 }});
@@ -1432,8 +1583,9 @@ function paintWelcome() {{
   if (!el) return;
   el.innerHTML = renderMarkdown(
     'Give **known-path** a goal — tools run through the real CLI.\\n\\n' +
-    'Use **AI agent** mode for chat, or switch to **Terminal only** for command pad.\\n\\n' +
-    'API keys are stored on the **server** under `.known-path/` (not wiped on refresh). Leave the key field blank when saving other settings.\\n\\n' +
+    '**AI agent** = chat + tools. **Terminal only** = command pad, no LLM.\\n\\n' +
+    'API keys live on the **server** (`.known-path/`) and survive refresh. Empty key field + Save = keep existing key.\\n\\n' +
+    'Switch dataset packs from the bar above, or upload catalog JSON / CSV.\\n\\n' +
     '| Action | What it does |\\n|---|---|\\n' +
     '| Trusted path | Activate certified tables |\\n' +
     '| Compare | Baseline thrash vs known-path |\\n' +
@@ -1562,7 +1714,11 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/datasets/upload/catalog":
             self._json(
                 200,
-                upload_catalog_json(str(body.get("name") or ""), str(body.get("content") or "")),
+                upload_catalog_json(
+                    str(body.get("name") or ""),
+                    str(body.get("content") or ""),
+                    allow_empty=bool(body.get("allow_empty")),
+                ),
             )
             return
         if path == "/api/datasets/upload/csv":
