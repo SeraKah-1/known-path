@@ -130,6 +130,15 @@ class DataHubGmsClient(CatalogClient):
                     name = ent.get("name") or urn
                     platform = (ent.get("platform") or {}).get("name") or "unknown"
                     desc = (ent.get("properties") or {}).get("description") or ""
+                    tag_names = []
+                    try:
+                        tag_names = [
+                            t.get("tag", {}).get("name")
+                            for t in (ent.get("tags") or {}).get("tags") or []
+                            if t.get("tag", {}).get("name")
+                        ]
+                    except Exception:
+                        tag_names = []
                     assets.append(
                         CatalogAsset(
                             urn=urn,
@@ -137,6 +146,10 @@ class DataHubGmsClient(CatalogClient):
                             platform=platform,
                             description=desc,
                             has_owner=True,
+                            certified="certified" in tag_names,
+                            deprecated="deprecated" in tag_names or "legacy" in tag_names,
+                            quality_fail="deprecated" in tag_names and "legacy" in tag_names,
+                            tags=tag_names,
                         )
                     )
                 if not assets:
