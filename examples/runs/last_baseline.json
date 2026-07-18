@@ -75,11 +75,25 @@
         "baseline_no_trust_gate"
       ],
       "activated": false
+    },
+    {
+      "urn": "urn:li:dataset:(urn:li:dataPlatform:snowflake,sales.orders_raw,PROD)",
+      "name": "sales.orders_raw",
+      "role": null,
+      "relevance": 0,
+      "trust": "green",
+      "explore": false,
+      "urgency": "normal",
+      "reasons": [
+        "lexical_hits:0",
+        "baseline_no_trust_gate"
+      ],
+      "activated": false
     }
   ],
   "status": "SUCCESS",
-  "message": "Baseline thrash: 5 fetches, activated 4 (no route sheet, weak trust).",
-  "entity_fetches": 5,
+  "message": "Baseline thrash: 6 fetches, activated 4 (no route sheet, weak trust).",
+  "entity_fetches": 6,
   "chosen_urns": [
     "urn:li:dataset:(urn:li:dataPlatform:snowflake,finance.revenue_old,PROD)",
     "urn:li:dataset:(urn:li:dataPlatform:snowflake,finance.rev_backup,PROD)",

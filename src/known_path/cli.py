@@ -144,7 +144,7 @@ def cards() -> None:
 @app.command()
 def web(
     host: str = typer.Option("127.0.0.1", "--host"),
-    port: int = typer.Option(8088, "--port", "-p"),
+    port: int = typer.Option(8090, "--port", "-p"),
     open_browser: bool = typer.Option(False, "--open"),
 ) -> None:
     """Start the web demo (stdlib server, no extra deps)."""

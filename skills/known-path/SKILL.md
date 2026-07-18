@@ -40,6 +40,13 @@ kp run --mode known-path --intent "revenue by region last quarter"
 kp run --mode blocked --intent "revenue by region last quarter"
 ```
 
+Full tool card: [TOOLS.md](./TOOLS.md)
+
+## Workbench agent
+
+Dashboard left rail chats with an OpenAI-compatible model that **must** call tools.
+Tools always shell into this CLI (allow-listed). Configure endpoint + key in ⚙ Settings.
+
 ## MCP tools
 
 - `match_job`

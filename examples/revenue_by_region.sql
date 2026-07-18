@@ -1,6 +1,6 @@
 -- known-path generated SQL
 -- job: job.revenue_by_region_quarter
--- intent: revenue by region last quarter Finance canonical
+-- intent: Activate trusted tables for revenue by region last quarter
 -- mode: route-sheet
 -- fact_urn: urn:li:dataset:(urn:li:dataPlatform:snowflake,finance.revenue_canonical,PROD)
 -- fact_name: finance.revenue_canonical

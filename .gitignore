@@ -21,3 +21,6 @@ examples/runs/*T*.json
 *.log
 .mypy_cache/
 .ruff_cache/
+.known-path/
+datasets/upload-*/
+

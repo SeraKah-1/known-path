@@ -20,6 +20,15 @@ def _repo_root() -> Path:
 
 
 def dataset_dir() -> Path:
+    try:
+        from known_path.settings_store import load_settings
+
+        active = (load_settings().get("dataset") or {}).get("active") or "demo-finance"
+    except Exception:
+        active = "demo-finance"
+    d = _repo_root() / "datasets" / active
+    if d.is_dir():
+        return d
     return _repo_root() / "datasets" / "demo-finance"
 
 
