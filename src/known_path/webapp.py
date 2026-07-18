@@ -609,6 +609,53 @@ table.t tr:last-child td {{ border-bottom: 0; }}
 .qbtn:hover {{ border-color: #e0c4b6; background: var(--clay-soft); transform: translateY(-1px); }}
 .qbtn .qt {{ font-size: .8rem; font-weight: 600; color: var(--ink); display: block; }}
 .qbtn .qd {{ font-size: .7rem; color: var(--ink-3); margin-top: .15rem; line-height: 1.3; }}
+
+.mode-switch {{
+  display: flex; gap: .25rem; margin: 0 1.25rem .55rem; padding: .25rem;
+  background: var(--paper-2); border-radius: 999px; border: 1px solid var(--line);
+}}
+.mode-switch button {{
+  flex: 1; border-radius: 999px; padding: .4rem .5rem; font-size: .75rem; font-weight: 600;
+  color: var(--ink-3); border: 0; background: transparent;
+}}
+.mode-switch button.on {{ background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }}
+.term-pad {{ display: none; flex: 1; flex-direction: column; min-height: 0; padding: 0 1rem 1rem; gap: .55rem; }}
+.term-pad.on {{ display: flex; }}
+.task.ai-on .chat, .task.ai-on .composer, .task.ai-on .quick-grid {{ display: flex; }}
+.task.ai-on .quick-grid {{ display: grid; }}
+.task.term-on .chat, .task.term-on .composer, .task.term-on .quick-grid {{ display: none !important; }}
+.task.term-on .term-pad {{ display: flex; }}
+.term-shell {{
+  flex: 1; min-height: 200px; display: flex; flex-direction: column;
+  background: #1c1b19; color: #e8e2d6; border-radius: 14px; border: 1px solid #2e2c28; overflow: hidden;
+}}
+.term-shell pre {{
+  flex: 1; margin: 0; padding: .75rem .85rem; overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .72rem; line-height: 1.45;
+  white-space: pre-wrap; word-break: break-word;
+}}
+.term-shell form {{
+  display: flex; gap: .4rem; padding: .5rem .6rem; border-top: 1px solid #2e2c28; background: #141311;
+}}
+.term-shell input {{
+  flex: 1; background: transparent; border: 0; color: #f3eee6;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem;
+}}
+.term-shell input:focus {{ outline: none; }}
+.ds-bar {{
+  display: flex; flex-wrap: wrap; gap: .4rem; align-items: center;
+  margin: 0 1.25rem .5rem; padding: .55rem .65rem;
+  background: var(--paper); border: 1px solid var(--line); border-radius: 12px;
+}}
+.ds-bar select {{
+  flex: 1; min-width: 120px; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 8px; padding: .35rem .5rem; font-size: .8rem;
+}}
+.ds-bar .btn {{ font-size: .72rem; padding: .35rem .6rem; }}
+.key-status {{
+  font-size: .72rem; color: var(--sage); font-weight: 600;
+}}
+.key-status.off {{ color: var(--rose); }}
 </style>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"/>
 <script defer src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
@@ -725,16 +772,26 @@ table.t tr:last-child td {{ border-bottom: 0; }}
       </div>
     </section>
 
-    <!-- RIGHT 1/3: Task / agent input -->
-    <section class="task">
+    <!-- RIGHT 1/3: Task / agent input OR terminal-only -->
+    <section class="task ai-on" id="taskPane">
       <div class="section-label">Task</div>
+      <div class="mode-switch">
+        <button type="button" class="on" id="modeAi" onclick="setUiMode('ai')">AI agent</button>
+        <button type="button" id="modeTerm" onclick="setUiMode('terminal')">Terminal only</button>
+      </div>
+      <div class="ds-bar">
+        <select id="dsSelectMain" onchange="switchDataset(this.value)" title="Active dataset"></select>
+        <button type="button" class="btn" onclick="document.getElementById('fileCat').click()">+ catalog</button>
+        <button type="button" class="btn" onclick="document.getElementById('fileCsv').click()">+ CSV</button>
+        <span class="key-status off" id="keyStatus">key · off</span>
+      </div>
       <div class="quick-grid" id="quickGrid">
         <button type="button" class="qbtn" onclick="quick('Activate trusted tables for revenue by region last quarter')"><span class="qt">Trusted path</span><span class="qd">known-path activation</span></button>
         <button type="button" class="qbtn" onclick="quick('Compare baseline thrash vs known-path for revenue by region')"><span class="qt">Compare paths</span><span class="qd">baseline vs trusted</span></button>
         <button type="button" class="qbtn" onclick="quick('fail closed when trust is red')"><span class="qt">Fail closed</span><span class="qd">block bad trust</span></button>
         <button type="button" class="qbtn" onclick="quick('doctor')"><span class="qt">Doctor</span><span class="qd">catalog connectivity</span></button>
-        <button type="button" class="qbtn" onclick="quick('dataset')"><span class="qt">List dataset</span><span class="qd">demo-finance assets</span></button>
-        <button type="button" class="qbtn" onclick="runTool('known-path')"><span class="qt">Run path now</span><span class="qd">skip chat · CLI only</span></button>
+        <button type="button" class="qbtn" onclick="quick('dataset')"><span class="qt">List dataset</span><span class="qd">active pack assets</span></button>
+        <button type="button" class="qbtn" onclick="runTool('known-path')"><span class="qt">Run path now</span><span class="qd">CLI only</span></button>
       </div>
       <div class="chat" id="chat">
         <div class="msg assistant"><div class="md" id="welcomeMd"></div></div>
@@ -753,6 +810,27 @@ table.t tr:last-child td {{ border-bottom: 0; }}
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
           </div>
+        </div>
+      </div>
+      <div class="term-pad" id="termPad">
+        <div class="quick-grid" style="margin:0">
+          <button type="button" class="qbtn" onclick="termRun('run known-path')"><span class="qt">run known-path</span><span class="qd">trusted activation</span></button>
+          <button type="button" class="qbtn" onclick="termRun('run baseline')"><span class="qt">run baseline</span><span class="qd">thrash path</span></button>
+          <button type="button" class="qbtn" onclick="termRun('run blocked')"><span class="qt">run blocked</span><span class="qd">fail closed</span></button>
+          <button type="button" class="qbtn" onclick="termRun('demo')"><span class="qt">demo</span><span class="qd">all three modes</span></button>
+          <button type="button" class="qbtn" onclick="termRun('doctor')"><span class="qt">doctor</span><span class="qd">health</span></button>
+          <button type="button" class="qbtn" onclick="termRun('dataset')"><span class="qt">dataset</span><span class="qd">list pack</span></button>
+        </div>
+        <div class="term-shell">
+          <pre id="termOut">$ terminal mode — AI disabled
+# click a command or type below
+# allowed: run <mode>, demo, doctor, dataset, cards, version
+</pre>
+          <form onsubmit="return termSubmit(event)">
+            <span style="color:#c96442;font-family:ui-monospace,monospace;padding-top:.35rem">$</span>
+            <input id="termIn" autocomplete="off" placeholder="run known-path :: revenue by region"/>
+            <button type="submit" class="btn primary" style="padding:.35rem .7rem">Run</button>
+          </form>
         </div>
       </div>
     </section>
@@ -1118,42 +1196,134 @@ async function sendAgent() {{
 
 function quick(t) {{ $('prompt').value = t; sendAgent(); }}
 
+function updateKeyStatus() {{
+  const s = BOOT.settings || {{}};
+  const el = $('keyStatus');
+  if (!el) return;
+  if (s.llm && s.llm.api_key_set) {{
+    el.textContent = 'key · ' + (s.llm.api_key_hint || 'saved');
+    el.className = 'key-status';
+  }} else {{
+    el.textContent = 'key · not set';
+    el.className = 'key-status off';
+  }}
+}}
+function setUiMode(mode) {{
+  const pane = $('taskPane');
+  const ai = mode !== 'terminal';
+  pane.classList.toggle('ai-on', ai);
+  pane.classList.toggle('term-on', !ai);
+  $('modeAi').classList.toggle('on', ai);
+  $('modeTerm').classList.toggle('on', !ai);
+  // persist (does not wipe secrets)
+  fetch('/api/settings', {{
+    method: 'POST',
+    headers: {{ 'Content-Type': 'application/json' }},
+    body: JSON.stringify({{ ui: {{ mode: ai ? 'ai' : 'terminal' }} }})
+  }}).then(r => r.json()).then(d => {{ if (d.public) BOOT.settings = d.public; }}).catch(() => {{}});
+}}
+async function switchDataset(id) {{
+  if (!id) return;
+  await loadDatasetPack(id);
+}}
+async function termRun(cmd) {{
+  $('termIn').value = cmd;
+  return termSubmit({{ preventDefault: () => {{}} }});
+}}
+async function termSubmit(ev) {{
+  if (ev && ev.preventDefault) ev.preventDefault();
+  const cmd = ($('termIn').value || '').trim();
+  if (!cmd) return false;
+  const out = $('termOut');
+  out.textContent += '\\n$ ' + cmd + '\\n';
+  setJit('Terminal', cmd, '');
+  pushFeed(`<strong>Terminal</strong> · ${{escapeHtml(cmd)}}`);
+  try {{
+    const r = await fetch('/api/agent', {{
+      method: 'POST',
+      headers: {{ 'Content-Type': 'application/json' }},
+      body: JSON.stringify({{ command: cmd }})
+    }});
+    const data = await r.json();
+    if (data.stdout) out.textContent += data.stdout + (data.stdout.endsWith('\\n') ? '' : '\\n');
+    if (data.stderr) out.textContent += data.stderr + '\\n';
+    if (data.error) out.textContent += 'error: ' + data.error + '\\n';
+    out.textContent += `[exit ${{data.exit_code}} · ${{data.duration_ms || 0}}ms]\\n`;
+    out.scrollTop = out.scrollHeight;
+    if (data.plan) paintPlan(data.plan);
+    if (data.plans) data.plans.forEach(p => updateFetchBar(p.mode, p.entity_fetches || 0));
+    appendCli(data.command || cmd, data);
+  }} catch (e) {{
+    out.textContent += String(e) + '\\n';
+  }}
+  $('termIn').value = '';
+  return false;
+}}
+
 function openSettings() {{
   const s = BOOT.settings || {{}};
   $('sBase').value = (s.llm && s.llm.base_url) || '';
+  // Never put secret into the input — only placeholder hint
   $('sKey').value = '';
-  $('sKey').placeholder = (s.llm && s.llm.api_key_set) ? '•••• saved' : 'API key';
+  $('sKey').placeholder = (s.llm && s.llm.api_key_set)
+    ? ((s.llm.api_key_hint || '•••• saved') + ' — leave blank to keep')
+    : 'API key (saved on server, not in the browser)';
   $('sGms').value = (s.datahub && s.datahub.gms_url) || '';
   $('sTok').value = '';
-  $('sTok').placeholder = (s.datahub && s.datahub.token_set) ? '•••• saved' : 'PAT';
+  $('sTok').placeholder = (s.datahub && s.datahub.token_set)
+    ? ((s.datahub.token_hint || '•••• saved') + ' — leave blank to keep')
+    : 'PAT';
   $('sLive').checked = !!(s.datahub && s.datahub.use_live);
   const models = $('sModel'); models.innerHTML = '';
   if (s.llm && s.llm.model) {{
     const o = document.createElement('option'); o.value = s.llm.model; o.textContent = s.llm.model; models.appendChild(o);
   }}
   refreshDsSelect();
+  updateKeyStatus();
+  $('setMsg').textContent = (s.llm && s.llm.api_key_set)
+    ? 'API key is saved on the server. Leave the field blank when saving other options.'
+    : 'No API key saved yet.';
   $('settingsModal').classList.add('open');
 }}
 function closeSettings() {{ $('settingsModal').classList.remove('open'); }}
 function refreshDsSelect() {{
-  const sel = $('sDs'); sel.innerHTML = '';
-  (BOOT.datasets || []).forEach(d => {{
-    const o = document.createElement('option');
-    o.value = d.id; o.textContent = d.id + ' · ' + d.assets + ' assets';
-    if (d.id === BOOT.active) o.selected = true;
-    sel.appendChild(o);
-  }});
+  const fill = (sel) => {{
+    if (!sel) return;
+    const cur = sel.value || BOOT.active;
+    sel.innerHTML = '';
+    (BOOT.datasets || []).forEach(d => {{
+      const o = document.createElement('option');
+      o.value = d.id; o.textContent = d.id + ' · ' + d.assets + ' assets';
+      if (d.id === (BOOT.active || cur)) o.selected = true;
+      sel.appendChild(o);
+    }});
+  }};
+  fill($('sDs'));
+  fill($('dsSelectMain'));
   $('dsLabel').textContent = BOOT.active || 'dataset';
+  updateKeyStatus();
 }}
 async function fetchModels() {{
   $('setMsg').textContent = 'Fetching…';
+  // Save base URL only; do not wipe key/model
   await saveSettings(true);
   const r = await fetch('/api/settings/models');
   const data = await r.json();
-  if (!data.ok) {{ $('setMsg').textContent = typeof data.error === 'string' ? data.error : 'Could not fetch models'; return; }}
-  const sel = $('sModel'); sel.innerHTML = '';
-  (data.models || []).forEach(id => {{ const o = document.createElement('option'); o.value = id; o.textContent = id; sel.appendChild(o); }});
-  $('setMsg').textContent = (data.models || []).length + ' models available';
+  if (!data.ok) {{
+    const err = data.error;
+    $('setMsg').textContent = typeof err === 'string' ? err : (err && err.error) ? String(err.error) : 'Could not fetch models';
+    return;
+  }}
+  const sel = $('sModel');
+  const prev = sel.value;
+  sel.innerHTML = '';
+  (data.models || []).forEach(id => {{
+    const o = document.createElement('option'); o.value = id; o.textContent = id;
+    if (id === prev) o.selected = true;
+    sel.appendChild(o);
+  }});
+  if (!sel.value && data.models && data.models.length) sel.value = data.models[0];
+  $('setMsg').textContent = (data.models || []).length + ' models · pick one then Save';
 }}
 async function testDh() {{
   await saveSettings(true);
@@ -1162,52 +1332,98 @@ async function testDh() {{
   $('setMsg').textContent = data.message || JSON.stringify(data);
 }}
 async function saveSettings(quiet) {{
+  // Only include secrets when user typed a new value (never send masked placeholders)
   const body = {{
-    llm: {{ base_url: $('sBase').value.trim(), model: $('sModel').value }},
-    datahub: {{ gms_url: $('sGms').value.trim(), use_live: $('sLive').checked }},
-    dataset: {{ active: $('sDs').value }}
+    llm: {{
+      base_url: $('sBase').value.trim(),
+    }},
+    datahub: {{
+      use_live: $('sLive').checked,
+    }},
+    dataset: {{ active: $('sDs').value || BOOT.active }},
+    ui: {{
+      mode: ($('taskPane').classList.contains('term-on') ? 'terminal' : 'ai'),
+      show_thinking: true,
+      stream_thinking: true,
+    }}
   }};
-  if ($('sKey').value) body.llm.api_key = $('sKey').value;
-  if ($('sTok').value) body.datahub.token = $('sTok').value;
+  const model = ($('sModel').value || '').trim();
+  if (model) body.llm.model = model;
+  const gms = $('sGms').value.trim();
+  if (gms) body.datahub.gms_url = gms;
+  const key = $('sKey').value.trim();
+  if (key && !key.startsWith('•')) body.llm.api_key = key;
+  const tok = $('sTok').value.trim();
+  if (tok && !tok.startsWith('•')) body.datahub.token = tok;
+
   const r = await fetch('/api/settings', {{ method: 'POST', headers: {{ 'Content-Type': 'application/json' }}, body: JSON.stringify(body) }});
   const data = await r.json();
   BOOT.settings = data.public || BOOT.settings;
   if (data.datasets) BOOT.datasets = data.datasets;
   if (body.dataset && body.dataset.active) BOOT.active = body.dataset.active;
   refreshDsSelect();
-  if (!quiet) {{ toast('Saved'); closeSettings(); }}
+  updateKeyStatus();
+  if (!quiet) {{
+    toast(BOOT.settings.llm && BOOT.settings.llm.api_key_set ? 'Saved (key kept)' : 'Saved');
+    closeSettings();
+  }}
   return data;
 }}
 async function loadDatasetPack(id) {{
   const r = await fetch('/api/datasets/active', {{ method: 'POST', headers: {{ 'Content-Type': 'application/json' }}, body: JSON.stringify({{ id }}) }});
   const data = await r.json();
-  if (data.ok) {{ BOOT.active = id; BOOT.datasets = data.datasets || BOOT.datasets; refreshDsSelect(); toast('Using ' + id); }}
-  else toast(data.error || 'Failed');
+  if (data.ok) {{
+    BOOT.active = id;
+    BOOT.datasets = data.datasets || BOOT.datasets;
+    refreshDsSelect();
+    toast('Using ' + id);
+    pushFeed(`<strong>Dataset</strong> · ${{escapeHtml(id)}}`);
+    setJit('Dataset switched', 'Active pack: ' + id, 'ok');
+  }} else toast(data.error || 'Failed');
 }}
 async function onUploadCatalog(ev) {{
   const f = ev.target.files[0]; if (!f) return;
   const text = await f.text();
-  const name = prompt('Name this pack', 'upload-' + Date.now().toString(36).slice(-5));
+  const name = prompt('Name this pack (letters, numbers, _ -)', 'upload-' + Date.now().toString(36).slice(-5));
   if (!name) return;
   const r = await fetch('/api/datasets/upload/catalog', {{ method: 'POST', headers: {{ 'Content-Type': 'application/json' }}, body: JSON.stringify({{ name, content: text }}) }});
   const data = await r.json();
-  toast(data.ok ? 'Catalog ready' : (data.error || 'Failed'));
-  if (data.ok) {{ BOOT.active = name; BOOT.datasets = await (await fetch('/api/datasets')).json(); refreshDsSelect(); }}
+  toast(data.ok ? 'Catalog pack ready: ' + name : (data.error || 'Failed'));
+  if (data.ok) {{
+    BOOT.active = name;
+    BOOT.datasets = await (await fetch('/api/datasets')).json();
+    refreshDsSelect();
+    pushFeed(`<strong>Upload</strong> · catalog pack ${{escapeHtml(name)}}`);
+  }}
   ev.target.value = '';
 }}
 async function onUploadCsv(ev) {{
   const f = ev.target.files[0]; if (!f) return;
   const text = await f.text();
-  const r = await fetch('/api/datasets/upload/csv', {{ method: 'POST', headers: {{ 'Content-Type': 'application/json' }}, body: JSON.stringify({{ dataset_id: BOOT.active || 'demo-finance', filename: f.name, content: text }}) }});
+  // allow choosing target pack
+  const pack = prompt('Save CSV into which dataset pack?', BOOT.active || 'demo-finance');
+  if (!pack) return;
+  const r = await fetch('/api/datasets/upload/csv', {{ method: 'POST', headers: {{ 'Content-Type': 'application/json' }}, body: JSON.stringify({{ dataset_id: pack, filename: f.name, content: text }}) }});
   const data = await r.json();
-  toast(data.ok ? 'CSV saved' : (data.error || 'Failed'));
+  toast(data.ok ? 'CSV saved to ' + pack : (data.error || 'Failed'));
+  if (data.ok) {{
+    BOOT.datasets = await (await fetch('/api/datasets')).json();
+    refreshDsSelect();
+    pushFeed(`<strong>Upload</strong> · CSV ${{escapeHtml(f.name)}} → ${{escapeHtml(pack)}}`);
+  }}
   ev.target.value = '';
 }}
 
 // boot
 refreshDsSelect();
+updateKeyStatus();
 drawGraph({{ nodes: [] }});
 drawDonut({{ nodes: [] }});
+// restore UI mode
+(function() {{
+  const mode = (BOOT.settings && BOOT.settings.ui && BOOT.settings.ui.mode) || 'ai';
+  setUiMode(mode === 'terminal' ? 'terminal' : 'ai');
+}})();
 $('prompt').addEventListener('keydown', (e) => {{
   if (e.key === 'Enter' && !e.shiftKey) {{ e.preventDefault(); sendAgent(); }}
 }});
@@ -1215,8 +1431,9 @@ function paintWelcome() {{
   const el = $('welcomeMd');
   if (!el) return;
   el.innerHTML = renderMarkdown(
-    'Give **known-path** a goal — it activates trusted catalog assets, checks trust, and leaves a route for review.\\n\\n' +
-    'Click an option above, or type freely. Tools always go through the real CLI.\\n\\n' +
+    'Give **known-path** a goal — tools run through the real CLI.\\n\\n' +
+    'Use **AI agent** mode for chat, or switch to **Terminal only** for command pad.\\n\\n' +
+    'API keys are stored on the **server** under `.known-path/` (not wiped on refresh). Leave the key field blank when saving other settings.\\n\\n' +
     '| Action | What it does |\\n|---|---|\\n' +
     '| Trusted path | Activate certified tables |\\n' +
     '| Compare | Baseline thrash vs known-path |\\n' +
@@ -1228,7 +1445,6 @@ function paintWelcome() {{
 if (document.readyState === 'loading') {{
   document.addEventListener('DOMContentLoaded', paintWelcome);
 }} else {{
-  // marked may still be loading (defer) — retry shortly
   setTimeout(paintWelcome, 50);
   setTimeout(paintWelcome, 300);
 }}

@@ -320,13 +320,17 @@ def chat(messages: list[dict[str, Any]], *, max_tool_rounds: int = 4) -> dict[st
     plans = None
     reasoning_bits: list[str] = []
 
-    def _completion_body(with_tools: bool) -> dict[str, Any]:
-        # stream:false required for many local gateways (else SSE empty-body bugs)
+    ui = load_settings().get("ui") or {}
+    prefer_stream = bool(ui.get("stream_thinking", True))
+
+    def _completion_body(with_tools: bool, *, stream: bool) -> dict[str, Any]:
+        # Prefer stream=True so reasoning tokens appear (many gateways only emit
+        # thinking in SSE). _http_json collapses SSE into one completion object.
         b: dict[str, Any] = {
             "model": model,
             "messages": msgs,
             "temperature": 0.2,
-            "stream": False,
+            "stream": stream,
         }
         if with_tools:
             b["tools"] = TOOL_DEFS
@@ -337,27 +341,41 @@ def chat(messages: list[dict[str, Any]], *, max_tool_rounds: int = 4) -> dict[st
         b["include_reasoning"] = True
         return b
 
-    thinking_log.append(
-        {"phase": "think", "title": "Planning", "detail": f"Model `{model}` · tools enabled"}
-    )
-
-    for round_i in range(max_tool_rounds):
-        code, data = _http_json(
-            "POST",
-            f"{base}/chat/completions",
-            api_key=key,
-            body=_completion_body(True),
-            timeout=120.0,
-        )
-        if code != 200 or (isinstance(data, dict) and data.get("error") and not data.get("choices")):
-            # Retry once without tools (some models/gateways choke on tools)
-            code2, data2 = _http_json(
+    def _call_completion(with_tools: bool) -> tuple[int, Any]:
+        # 1) streaming (thinking visible on most gateways)
+        if prefer_stream:
+            code_s, data_s = _http_json(
                 "POST",
                 f"{base}/chat/completions",
                 api_key=key,
-                body=_completion_body(False),
-                timeout=120.0,
+                body=_completion_body(with_tools, stream=True),
+                timeout=180.0,
             )
+            if code_s == 200 and isinstance(data_s, dict) and data_s.get("choices"):
+                return code_s, data_s
+        # 2) non-stream JSON
+        code_j, data_j = _http_json(
+            "POST",
+            f"{base}/chat/completions",
+            api_key=key,
+            body=_completion_body(with_tools, stream=False),
+            timeout=180.0,
+        )
+        return code_j, data_j
+
+    thinking_log.append(
+        {
+            "phase": "think",
+            "title": "Planning",
+            "detail": f"Model `{model}` · tools on · stream_thinking={prefer_stream}",
+        }
+    )
+
+    for round_i in range(max_tool_rounds):
+        code, data = _call_completion(True)
+        if code != 200 or (isinstance(data, dict) and data.get("error") and not data.get("choices")):
+            # Retry once without tools (some models/gateways choke on tools)
+            code2, data2 = _call_completion(False)
             if code2 == 200 and isinstance(data2, dict) and data2.get("choices"):
                 code, data = code2, data2
             else:
@@ -370,7 +388,7 @@ def chat(messages: list[dict[str, Any]], *, max_tool_rounds: int = 4) -> dict[st
                     "thinking": thinking_log,
                     "reasoning": "\n\n".join(reasoning_bits),
                     "messages": msgs,
-                    "hint": "Gateway must accept stream:false JSON, or return parseable SSE.",
+                    "hint": "Gateway must return JSON (stream:false) or SSE chat chunks.",
                 }
         choice = (data.get("choices") or [{}])[0]
         msg = choice.get("message") or {}
