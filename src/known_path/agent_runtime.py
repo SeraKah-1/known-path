@@ -74,13 +74,49 @@ Preferred flow for metric questions:
 2) if trust fails, explain fail-closed — never invent replacements
 3) optionally compare with baseline to show trap tables
 
-Be concise. After tools, summarize: status, assets lit, fetches, whether a trap was hit, and what the SQL is for.
+Write the final answer in clean Markdown (short headings, bullet lists, compact tables).
+Do not wrap the whole reply in a single code fence.
+After tools, summarize: status, assets lit, fetches, whether a trap was hit, and what the SQL is for.
+When reasoning, keep internal chain-of-thought brief; the UI shows tool progress separately.
 """
+
+
+def _extract_reasoning(msg: dict[str, Any]) -> str:
+    """Pull model reasoning/thinking from common gateway fields."""
+    chunks: list[str] = []
+    for key in (
+        "reasoning",
+        "reasoning_content",
+        "thinking",
+        "reasoning_text",
+        "thought",
+    ):
+        val = msg.get(key)
+        if isinstance(val, str) and val.strip():
+            chunks.append(val.strip())
+        elif isinstance(val, list):
+            for item in val:
+                if isinstance(item, str) and item.strip():
+                    chunks.append(item.strip())
+                elif isinstance(item, dict):
+                    t = item.get("text") or item.get("content") or ""
+                    if t:
+                        chunks.append(str(t).strip())
+    # OpenAI-ish reasoning details
+    details = msg.get("reasoning_details") or msg.get("reasoning_content_details")
+    if isinstance(details, list):
+        for item in details:
+            if isinstance(item, dict):
+                t = item.get("text") or item.get("content") or ""
+                if t:
+                    chunks.append(str(t).strip())
+    return "\n\n".join(chunks).strip()
 
 
 def _parse_sse_chat(raw: str) -> dict[str, Any]:
     """Collapse OpenAI-style SSE chat chunks into one completion-shaped object."""
     content_parts: list[str] = []
+    reasoning_parts: list[str] = []
     tool_acc: dict[int, dict[str, Any]] = {}
     role = "assistant"
     model = ""
@@ -107,6 +143,9 @@ def _parse_sse_chat(raw: str) -> dict[str, Any]:
             role = delta["role"]
         if delta.get("content"):
             content_parts.append(str(delta["content"]))
+        for rk in ("reasoning", "reasoning_content", "thinking"):
+            if delta.get(rk):
+                reasoning_parts.append(str(delta[rk]))
         # tool_calls streaming
         for tc in delta.get("tool_calls") or []:
             idx = int(tc.get("index") or 0)
@@ -128,6 +167,8 @@ def _parse_sse_chat(raw: str) -> dict[str, Any]:
         if ch0.get("finish_reason"):
             finish = ch0.get("finish_reason")
     message: dict[str, Any] = {"role": role, "content": "".join(content_parts) or None}
+    if reasoning_parts:
+        message["reasoning_content"] = "".join(reasoning_parts)
     if tool_acc:
         message["tool_calls"] = [tool_acc[i] for i in sorted(tool_acc)]
     return {
@@ -274,40 +315,47 @@ def chat(messages: list[dict[str, Any]], *, max_tool_rounds: int = 4) -> dict[st
 
     msgs: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}, *messages]
     traces: list[dict[str, Any]] = []
+    thinking_log: list[dict[str, Any]] = []
     last_plan = None
     plans = None
+    reasoning_bits: list[str] = []
 
-    for _ in range(max_tool_rounds):
-        # Force non-streaming JSON. Some local gateways default to SSE and
-        # return empty/invalid bodies when the client expects one-shot JSON.
-        body = {
+    def _completion_body(with_tools: bool) -> dict[str, Any]:
+        # stream:false required for many local gateways (else SSE empty-body bugs)
+        b: dict[str, Any] = {
             "model": model,
             "messages": msgs,
-            "tools": TOOL_DEFS,
-            "tool_choice": "auto",
             "temperature": 0.2,
             "stream": False,
         }
+        if with_tools:
+            b["tools"] = TOOL_DEFS
+            b["tool_choice"] = "auto"
+        # Common reasoning toggles (ignored by gateways that don't support them)
+        b["reasoning"] = True
+        b["reasoning_effort"] = "medium"
+        b["include_reasoning"] = True
+        return b
+
+    thinking_log.append(
+        {"phase": "think", "title": "Planning", "detail": f"Model `{model}` · tools enabled"}
+    )
+
+    for round_i in range(max_tool_rounds):
         code, data = _http_json(
             "POST",
             f"{base}/chat/completions",
             api_key=key,
-            body=body,
+            body=_completion_body(True),
             timeout=120.0,
         )
         if code != 200 or (isinstance(data, dict) and data.get("error") and not data.get("choices")):
             # Retry once without tools (some models/gateways choke on tools)
-            body_simple = {
-                "model": model,
-                "messages": msgs,
-                "temperature": 0.2,
-                "stream": False,
-            }
             code2, data2 = _http_json(
                 "POST",
                 f"{base}/chat/completions",
                 api_key=key,
-                body=body_simple,
+                body=_completion_body(False),
                 timeout=120.0,
             )
             if code2 == 200 and isinstance(data2, dict) and data2.get("choices"):
@@ -319,18 +367,35 @@ def chat(messages: list[dict[str, Any]], *, max_tool_rounds: int = 4) -> dict[st
                     "error": err,
                     "status": code if code != 200 else code2,
                     "tool_traces": traces,
+                    "thinking": thinking_log,
+                    "reasoning": "\n\n".join(reasoning_bits),
                     "messages": msgs,
                     "hint": "Gateway must accept stream:false JSON, or return parseable SSE.",
                 }
         choice = (data.get("choices") or [{}])[0]
         msg = choice.get("message") or {}
+        reason = _extract_reasoning(msg)
+        if reason:
+            reasoning_bits.append(reason)
+            thinking_log.append(
+                {
+                    "phase": "reason",
+                    "title": f"Reasoning (round {round_i + 1})",
+                    "detail": reason[:4000],
+                }
+            )
         tool_calls = msg.get("tool_calls") or []
         if not tool_calls:
             content = msg.get("content") or ""
+            thinking_log.append(
+                {"phase": "done", "title": "Answer ready", "detail": "No more tool calls"}
+            )
             return {
                 "ok": True,
                 "content": content,
                 "tool_traces": traces,
+                "thinking": thinking_log,
+                "reasoning": "\n\n".join(reasoning_bits),
                 "plan": last_plan,
                 "plans": plans,
                 "messages": msgs + [{"role": "assistant", "content": content}],
@@ -344,7 +409,30 @@ def chat(messages: list[dict[str, Any]], *, max_tool_rounds: int = 4) -> dict[st
                 args = json.loads(fn.get("arguments") or "{}")
             except json.JSONDecodeError:
                 args = {}
+            thinking_log.append(
+                {
+                    "phase": "tool",
+                    "title": f"Calling `{name}`",
+                    "detail": json.dumps(args, ensure_ascii=False)[:800],
+                    "status": "running",
+                }
+            )
             result = _dispatch_tool(name, args)
+            status = "ok" if result.get("ok", True) and not result.get("error") else "error"
+            thinking_log.append(
+                {
+                    "phase": "tool",
+                    "title": f"Finished `{name}`",
+                    "detail": (
+                        f"{result.get('command') or name} · "
+                        f"{result.get('duration_ms', 0)}ms · exit {result.get('exit_code', '—')}"
+                    ),
+                    "status": status,
+                    "command": result.get("command"),
+                    "duration_ms": result.get("duration_ms"),
+                    "exit_code": result.get("exit_code"),
+                }
+            )
             traces.append(
                 {
                     "tool": name,
@@ -353,24 +441,38 @@ def chat(messages: list[dict[str, Any]], *, max_tool_rounds: int = 4) -> dict[st
                     "duration_ms": result.get("duration_ms"),
                     "exit_code": result.get("exit_code"),
                     "ok": result.get("ok"),
+                    "status": status,
                 }
             )
             if result.get("plan"):
                 last_plan = result["plan"]
             if result.get("plans"):
                 plans = result["plans"]
+            # Compact tool result for model context (keep plan summary, drop huge SQL if needed)
+            compact = {
+                "ok": result.get("ok"),
+                "command": result.get("command"),
+                "exit_code": result.get("exit_code"),
+                "duration_ms": result.get("duration_ms"),
+                "plan": result.get("plan"),
+                "plans": result.get("plans"),
+                "error": result.get("error"),
+                "stdout_tail": (result.get("stdout") or "")[-1500:],
+            }
             msgs.append(
                 {
                     "role": "tool",
                     "tool_call_id": tc.get("id"),
-                    "content": json.dumps(result)[:12000],
+                    "content": json.dumps(compact)[:12000],
                 }
             )
 
     return {
         "ok": True,
-        "content": "Stopped after max tool rounds. See tool traces.",
+        "content": "Stopped after max tool rounds. See tool progress.",
         "tool_traces": traces,
+        "thinking": thinking_log,
+        "reasoning": "\n\n".join(reasoning_bits),
         "plan": last_plan,
         "plans": plans,
         "messages": msgs,

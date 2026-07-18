@@ -452,7 +452,97 @@ table.t tr:last-child td {{ border-bottom: 0; }}
   animation: dots 1.2s steps(4,end) infinite;
 }}
 @keyframes dots {{ 0% {{ content: ''; }} 25% {{ content: '.'; }} 50% {{ content: '..'; }} 75% {{ content: '...'; }} }}
+
+/* Markdown / LaTeX inside chat frame — prevent layout break */
+.msg.assistant .md {{
+  max-width: 100%; overflow-wrap: anywhere; word-break: break-word;
+  font-size: .92rem; line-height: 1.55; color: var(--ink-2);
+}}
+.msg.assistant .md > :first-child {{ margin-top: 0; }}
+.msg.assistant .md > :last-child {{ margin-bottom: 0; }}
+.msg.assistant .md h1, .msg.assistant .md h2, .msg.assistant .md h3 {{
+  font-family: var(--serif); font-weight: 400; color: var(--ink);
+  margin: .9rem 0 .4rem; letter-spacing: -.02em; line-height: 1.2;
+}}
+.msg.assistant .md h1 {{ font-size: 1.25rem; }}
+.msg.assistant .md h2 {{ font-size: 1.12rem; }}
+.msg.assistant .md h3 {{ font-size: 1.02rem; }}
+.msg.assistant .md p {{ margin: .45rem 0; }}
+.msg.assistant .md ul, .msg.assistant .md ol {{ margin: .4rem 0 .5rem; padding-left: 1.2rem; }}
+.msg.assistant .md li {{ margin: .2rem 0; }}
+.msg.assistant .md code {{
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .82em; background: var(--paper-2); border: 1px solid var(--line);
+  border-radius: 6px; padding: .1rem .35rem;
+}}
+.msg.assistant .md pre {{
+  margin: .55rem 0; padding: .75rem .85rem; overflow-x: auto; max-width: 100%;
+  background: #1f1e1c; color: #f3eee6; border-radius: 12px; font-size: .78rem; line-height: 1.45;
+}}
+.msg.assistant .md pre code {{ background: none; border: 0; padding: 0; color: inherit; font-size: inherit; }}
+.msg.assistant .md table {{
+  display: block; width: 100%; max-width: 100%; overflow-x: auto;
+  border-collapse: collapse; margin: .55rem 0; font-size: .8rem;
+}}
+.msg.assistant .md th, .msg.assistant .md td {{
+  border: 1px solid var(--line); padding: .4rem .55rem; text-align: left; vertical-align: top;
+  white-space: nowrap;
+}}
+.msg.assistant .md th {{ background: var(--paper-2); color: var(--ink); font-weight: 600; }}
+.msg.assistant .md blockquote {{
+  margin: .5rem 0; padding: .35rem .75rem; border-left: 3px solid var(--clay);
+  color: var(--ink-3); background: var(--paper-2); border-radius: 0 8px 8px 0;
+}}
+.msg.assistant .md .katex-display {{
+  margin: .6rem 0; overflow-x: auto; overflow-y: hidden; max-width: 100%;
+}}
+.msg.assistant .md img {{ max-width: 100%; height: auto; border-radius: 10px; }}
+.msg.assistant .md hr {{ border: 0; border-top: 1px solid var(--line); margin: .8rem 0; }}
+
+.think {{
+  align-self: stretch; background: var(--paper-2); border: 1px solid var(--line);
+  border-radius: 14px; overflow: hidden; font-size: .82rem;
+}}
+.think summary {{
+  cursor: pointer; list-style: none; padding: .65rem .85rem; font-weight: 600; color: var(--ink-2);
+  display: flex; align-items: center; gap: .45rem; user-select: none;
+}}
+.think summary::-webkit-details-marker {{ display: none; }}
+.think[open] summary {{ border-bottom: 1px solid var(--line); }}
+.think-body {{ padding: .55rem .85rem .75rem; display: flex; flex-direction: column; gap: .45rem; max-height: 280px; overflow: auto; }}
+.think-row {{
+  display: grid; grid-template-columns: 16px 1fr; gap: .5rem; align-items: start;
+  padding: .4rem .5rem; border-radius: 10px; background: var(--surface); border: 1px solid var(--line);
+}}
+.think-row .ph {{
+  width: 10px; height: 10px; border-radius: 50%; margin-top: .3rem;
+  background: var(--line-2);
+}}
+.think-row.reason .ph {{ background: var(--amber); }}
+.think-row.tool .ph {{ background: var(--clay); }}
+.think-row.done .ph {{ background: var(--sage); }}
+.think-row.error .ph {{ background: var(--rose); }}
+.think-row .tt {{ font-weight: 600; color: var(--ink); font-size: .8rem; }}
+.think-row .td {{ color: var(--ink-3); font-size: .75rem; margin-top: .15rem; white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }}
+
+.quick-grid {{
+  display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; margin: 0 1.25rem .65rem;
+}}
+@media (max-width: 520px) {{ .quick-grid {{ grid-template-columns: 1fr; }} }}
+.qbtn {{
+  text-align: left; padding: .65rem .75rem; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--paper);
+  transition: border-color .15s, background .15s, transform .15s var(--ease);
+}}
+.qbtn:hover {{ border-color: #e0c4b6; background: var(--clay-soft); transform: translateY(-1px); }}
+.qbtn .qt {{ font-size: .8rem; font-weight: 600; color: var(--ink); display: block; }}
+.qbtn .qd {{ font-size: .7rem; color: var(--ink-3); margin-top: .15rem; line-height: 1.3; }}
 </style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"/>
+<script defer src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -479,21 +569,26 @@ table.t tr:last-child td {{ border-bottom: 0; }}
     <!-- Task / agent (Cowork: give it a goal) -->
     <section class="task">
       <div class="section-label">Task</div>
+      <div class="quick-grid" id="quickGrid">
+        <button type="button" class="qbtn" onclick="quick('Activate trusted tables for revenue by region last quarter')"><span class="qt">Trusted path</span><span class="qd">known-path activation</span></button>
+        <button type="button" class="qbtn" onclick="quick('Compare baseline thrash vs known-path for revenue by region')"><span class="qt">Compare paths</span><span class="qd">baseline vs trusted</span></button>
+        <button type="button" class="qbtn" onclick="quick('fail closed when trust is red')"><span class="qt">Fail closed</span><span class="qd">block bad trust</span></button>
+        <button type="button" class="qbtn" onclick="quick('doctor')"><span class="qt">Doctor</span><span class="qd">catalog connectivity</span></button>
+        <button type="button" class="qbtn" onclick="quick('dataset')"><span class="qt">List dataset</span><span class="qd">demo-finance assets</span></button>
+        <button type="button" class="qbtn" onclick="runTool('known-path')"><span class="qt">Run path now</span><span class="qd">skip chat · CLI only</span></button>
+      </div>
       <div class="chat" id="chat">
-        <div class="msg assistant">
-          Give known-path a goal — it activates trusted catalog assets, checks trust, and leaves a route you can review.
-          <br/><br/>
-          Tools run through the real CLI. Configure your model in settings when you want full agent chat.
-        </div>
+        <div class="msg assistant"><div class="md" id="welcomeMd"></div></div>
       </div>
       <div class="composer">
         <div class="composer-box">
-          <textarea id="prompt" rows="3" placeholder="Describe the data job… e.g. Activate trusted tables for revenue by region"></textarea>
+          <textarea id="prompt" rows="3" placeholder="Describe the data job… or click an option above"></textarea>
           <div class="composer-foot">
             <div class="suggestions">
               <button type="button" class="chip" onclick="quick('Activate trusted tables for revenue by region last quarter')">Trusted path</button>
               <button type="button" class="chip" onclick="quick('Compare baseline thrash vs known-path for revenue by region')">Compare</button>
               <button type="button" class="chip" onclick="quick('fail closed when trust is red')">Fail closed</button>
+              <button type="button" class="chip" onclick="quick('doctor')">Doctor</button>
             </div>
             <button type="button" class="btn-send" id="sendBtn" onclick="sendAgent()" title="Send" aria-label="Send">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -617,15 +712,77 @@ function setBusy(on) {{
   $('sendBtn').disabled = on;
 }}
 function escapeHtml(s) {{
-  return String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+  return String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
 }}
-function addMsg(role, html) {{
+function renderMarkdown(text) {{
+  const src = String(text ?? '');
+  let html = '';
+  try {{
+    if (window.marked) {{
+      marked.setOptions({{ gfm: true, breaks: true }});
+      html = marked.parse(src);
+    }} else {{
+      html = '<p>' + escapeHtml(src).replaceAll('\\n', '<br/>') + '</p>';
+    }}
+  }} catch (e) {{
+    html = '<p>' + escapeHtml(src).replaceAll('\\n', '<br/>') + '</p>';
+  }}
+  if (window.DOMPurify) {{
+    html = DOMPurify.sanitize(html, {{
+      ADD_TAGS: ['mjx-container'],
+      ADD_ATTR: ['class', 'style', 'aria-hidden', 'focusable', 'role', 'xmlns']
+    }});
+  }}
+  return html;
+}}
+function enhanceMath(el) {{
+  if (!el || !window.renderMathInElement) return;
+  try {{
+    renderMathInElement(el, {{
+      delimiters: [
+        {{left: '$$', right: '$$', display: true}},
+        {{left: '\\\\[', right: '\\\\]', display: true}},
+        {{left: '$', right: '$', display: false}},
+        {{left: '\\\\(', right: '\\\\)', display: false}}
+      ],
+      throwOnError: false,
+      strict: 'ignore'
+    }});
+  }} catch (e) {{}}
+}}
+function addMsg(role, content, opts) {{
+  opts = opts || {{}};
   const d = document.createElement('div');
   d.className = 'msg ' + role;
-  d.innerHTML = html;
-  $('chat').appendChild(d);
+  if (role === 'assistant' && opts.markdown !== false) {{
+    const wrap = document.createElement('div');
+    wrap.className = 'md';
+    wrap.innerHTML = typeof content === 'string' ? renderMarkdown(content) : '';
+    d.appendChild(wrap);
+    $('chat').appendChild(d);
+    enhanceMath(wrap);
+  }} else if (role === 'think') {{
+    d.className = 'msg think';
+    d.innerHTML = content;
+    $('chat').appendChild(d);
+  }} else {{
+    d.innerHTML = content;
+    $('chat').appendChild(d);
+  }}
   $('chat').scrollTop = $('chat').scrollHeight;
   return d;
+}}
+function renderThinkingPanel(thinking, reasoning) {{
+  const rows = [];
+  (thinking || []).forEach(t => {{
+    const ph = t.phase === 'tool' ? 'tool' : (t.phase === 'reason' ? 'reason' : (t.phase === 'done' ? 'done' : (t.status === 'error' ? 'error' : 'tool')));
+    rows.push(`<div class="think-row ${{ph}}"><div class="ph"></div><div><div class="tt">${{escapeHtml(t.title || t.phase || 'step')}}</div><div class="td">${{escapeHtml(t.detail || '')}}</div></div></div>`);
+  }});
+  if (reasoning && !(thinking || []).some(t => t.phase === 'reason')) {{
+    rows.unshift(`<div class="think-row reason"><div class="ph"></div><div><div class="tt">Reasoning</div><div class="td">${{escapeHtml(reasoning)}}</div></div></div>`);
+  }}
+  if (!rows.length) return null;
+  return `<details class="think" open><summary>Thinking &amp; tools · ${{rows.length}} steps</summary><div class="think-body">${{rows.join('')}}</div></details>`;
 }}
 function trapHit(plan) {{
   return (plan.nodes || []).some(n => n.activated && /old|backup|tmp/i.test(n.name || ''));
@@ -756,28 +913,29 @@ async function runTool(mode) {{
     appendCli(data.command, data);
     if (data.plan) {{
       paintPlan(data.plan);
-      addMsg('assistant', summarizePlan(data.plan));
+      addMsg('assistant', summarizePlan(data.plan), {{ markdown: true }});
     }}
   }} catch (e) {{ toast(String(e)); }}
   finally {{ setBusy(false); }}
 }}
 
 function summarizePlan(plan) {{
-  const act = (plan.nodes || []).filter(n => n.activated).map(n => n.name).join(', ') || 'none';
-  const trap = trapHit(plan) ? ' A trap asset was lit — review carefully.' : '';
+  const act = (plan.nodes || []).filter(n => n.activated).map(n => '`' + n.name + '`').join(', ') || 'none';
+  const trap = trapHit(plan) ? '\\n\\nA trap asset was lit — review carefully.' : '';
   if (plan.status === 'BLOCKED_TRUST') {{
-    return `<strong>Stopped on trust.</strong> ${{escapeHtml(plan.message || '')}} No replacement table was invented.`;
+    return `**Stopped on trust.**\\n\\n${{plan.message || ''}}\\n\\nNo replacement table was invented.`;
   }}
-  return `<strong>${{plan.status === 'SUCCESS' ? 'Ready for review.' : escapeHtml(plan.status)}}</strong> Lit ${{escapeHtml(act)}}. ${{plan.entity_fetches}} catalog fetch(es).${{trap}}`;
+  return `**${{plan.status === 'SUCCESS' ? 'Ready for review' : plan.status}}**\\n\\n- Assets lit: ${{act}}\\n- Fetches: ${{plan.entity_fetches}}${{trap}}`;
 }}
 
 async function sendAgent() {{
   const text = $('prompt').value.trim();
   if (!text) return;
-  addMsg('user', escapeHtml(text));
+  addMsg('user', escapeHtml(text), {{ markdown: false }});
   $('prompt').value = '';
   setBusy(true);
-  const thinking = addMsg('assistant', '<span class="loading-dots">Working</span>');
+  const thinking = addMsg('assistant', '', {{ markdown: false }});
+  thinking.innerHTML = '<div class="md"><p><span class="loading-dots">Working</span></p></div>';
   try {{
     const r = await fetch('/api/agent/chat', {{
       method: 'POST',
@@ -786,17 +944,21 @@ async function sendAgent() {{
     }});
     const data = await r.json();
     thinking.remove();
+    const thinkHtml = renderThinkingPanel(data.thinking, data.reasoning);
+    if (thinkHtml) addMsg('think', thinkHtml, {{ markdown: false }});
     (data.tool_traces || []).forEach(tr => {{
-      addMsg('step', `<span class="badge">Tool</span> ${{escapeHtml(tr.tool || 'cli')}} · ${{tr.duration_ms || 0}}ms<div class="cmd">${{escapeHtml(tr.command || '')}}</div>`);
       if (tr.command) appendCli(tr.command, {{ exit_code: tr.exit_code, duration_ms: tr.duration_ms }});
     }});
     if (data.plan) paintPlan(data.plan);
     if (data.plans) data.plans.forEach(p => updateFetchBar(p.mode, p.entity_fetches || 0));
-    if (data.content) addMsg('assistant', escapeHtml(data.content).replaceAll('\\n', '<br/>'));
-    else if (data.error) addMsg('assistant', 'Something went wrong: ' + escapeHtml(typeof data.error === 'string' ? data.error : JSON.stringify(data.error)));
+    if (data.content) addMsg('assistant', data.content, {{ markdown: true }});
+    else if (data.error) {{
+      const err = typeof data.error === 'string' ? data.error : JSON.stringify(data.error, null, 2);
+      addMsg('assistant', '**Something went wrong**\\n\\n```\\n' + err + '\\n```', {{ markdown: true }});
+    }}
   }} catch (e) {{
     thinking.remove();
-    addMsg('assistant', escapeHtml(String(e)));
+    addMsg('assistant', '**Request failed**\\n\\n' + String(e), {{ markdown: true }});
   }} finally {{
     setBusy(false);
   }}
@@ -897,6 +1059,27 @@ drawDonut({{ nodes: [] }});
 $('prompt').addEventListener('keydown', (e) => {{
   if (e.key === 'Enter' && !e.shiftKey) {{ e.preventDefault(); sendAgent(); }}
 }});
+function paintWelcome() {{
+  const el = $('welcomeMd');
+  if (!el) return;
+  el.innerHTML = renderMarkdown(
+    'Give **known-path** a goal — it activates trusted catalog assets, checks trust, and leaves a route for review.\\n\\n' +
+    'Click an option above, or type freely. Tools always go through the real CLI.\\n\\n' +
+    '| Action | What it does |\\n|---|---|\\n' +
+    '| Trusted path | Activate certified tables |\\n' +
+    '| Compare | Baseline thrash vs known-path |\\n' +
+    '| Fail closed | Stop on red trust |\\n' +
+    '| Doctor | Connectivity check |'
+  );
+  enhanceMath(el);
+}}
+if (document.readyState === 'loading') {{
+  document.addEventListener('DOMContentLoaded', paintWelcome);
+}} else {{
+  // marked may still be loading (defer) — retry shortly
+  setTimeout(paintWelcome, 50);
+  setTimeout(paintWelcome, 300);
+}}
 </script>
 </body>
 </html>
@@ -1029,16 +1212,83 @@ class Handler(BaseHTTPRequestHandler):
             s = load_settings()["llm"]
             if not s.get("model") or not s.get("base_url"):
                 low = msg.lower()
+                thinking = [
+                    {
+                        "phase": "think",
+                        "title": "No LLM model configured",
+                        "detail": "Using local router → CLI tools (set endpoint + model in Settings for full agent)",
+                    }
+                ]
                 if low in ("doctor", "dataset", "demo") or low.startswith("run "):
                     r = agent_command(msg)
-                elif "baseline" in low or "compare" in low:
+                    thinking.append(
+                        {
+                            "phase": "tool",
+                            "title": f"CLI `{msg.split()[0]}`",
+                            "detail": r.command_display,
+                            "status": "ok" if r.ok else "error",
+                            "duration_ms": r.duration_ms,
+                            "exit_code": r.exit_code,
+                        }
+                    )
+                    content = (
+                        f"```\\n{(r.stdout or r.error or 'done')[:2000]}\\n```"
+                        if low in ("doctor", "dataset")
+                        else ((r.plan or {}).get("message") if r.plan else (r.error or "Done."))
+                    )
+                    self._json(
+                        200,
+                        {
+                            "ok": r.ok,
+                            "content": content,
+                            "thinking": thinking,
+                            "tool_traces": [
+                                {
+                                    "tool": "cli",
+                                    "command": r.command_display,
+                                    "duration_ms": r.duration_ms,
+                                    "exit_code": r.exit_code,
+                                    "ok": r.ok,
+                                }
+                            ],
+                            "plan": r.plan,
+                            "plans": r.plans,
+                        },
+                    )
+                    return
+                if "baseline" in low or "compare" in low:
                     r = run_mode_via_cli("baseline", msg)
                     r2 = run_mode_via_cli("known-path", DEFAULT_INTENT)
+                    thinking.extend(
+                        [
+                            {
+                                "phase": "tool",
+                                "title": "Calling `run_activation` (baseline)",
+                                "detail": r.command_display,
+                                "status": "ok" if r.ok else "error",
+                                "duration_ms": r.duration_ms,
+                            },
+                            {
+                                "phase": "tool",
+                                "title": "Calling `run_activation` (known-path)",
+                                "detail": r2.command_display,
+                                "status": "ok" if r2.ok else "error",
+                                "duration_ms": r2.duration_ms,
+                            },
+                            {"phase": "done", "title": "Compare complete", "detail": "Baseline vs trusted path"},
+                        ]
+                    )
                     self._json(
                         200,
                         {
                             "ok": True,
-                            "content": "Compared baseline thrash to the trusted path. Configure a model in Settings for freer chat.",
+                            "content": (
+                                "### Compare complete\\n\\n"
+                                f"- **Baseline** fetches: `{(r.plan or {}).get('entity_fetches')}`\\n"
+                                f"- **Known-path** fetches: `{(r2.plan or {}).get('entity_fetches')}`\\n\\n"
+                                "Trusted path uses certified tables only."
+                            ),
+                            "thinking": thinking,
                             "tool_traces": [
                                 {
                                     "tool": "run_activation",
@@ -1058,7 +1308,7 @@ class Handler(BaseHTTPRequestHandler):
                         },
                     )
                     return
-                elif (
+                if (
                     "fail closed" in low
                     or "fail-closed" in low
                     or low.startswith("blocked")
@@ -1068,6 +1318,17 @@ class Handler(BaseHTTPRequestHandler):
                     r = run_mode_via_cli("blocked", DEFAULT_INTENT)
                 else:
                     r = run_mode_via_cli("known-path", msg or DEFAULT_INTENT)
+                thinking.append(
+                    {
+                        "phase": "tool",
+                        "title": "Calling `run_activation`",
+                        "detail": r.command_display,
+                        "status": "ok" if r.ok else "error",
+                        "duration_ms": r.duration_ms,
+                        "exit_code": r.exit_code,
+                    }
+                )
+                thinking.append({"phase": "done", "title": "Answer ready", "detail": (r.plan or {}).get("status", "")})
                 self._json(
                     200,
                     {
@@ -1075,6 +1336,7 @@ class Handler(BaseHTTPRequestHandler):
                         "content": (r.plan or {}).get("message")
                         if r.plan
                         else (r.error or r.stdout[:500] or "Done."),
+                        "thinking": thinking,
                         "tool_traces": [
                             {
                                 "tool": "cli",
