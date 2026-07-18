@@ -140,24 +140,96 @@ a:hover {{ text-decoration: underline; text-underline-offset: 3px; }}
 }}
 .icon-btn:hover {{ background: var(--surface); border-color: var(--line); }}
 
-/* Shell: ~1/3 task + 2/3 work (Cowork: steer task | see work) */
+/* Shell: 2/3 JIT work (left) + 1/3 task/agent (right) */
 .shell {{
   display: grid;
-  grid-template-columns: minmax(320px, 34%) minmax(0, 66%);
+  grid-template-columns: minmax(0, 66%) minmax(300px, 34%);
   min-height: 0;
 }}
 @media (max-width: 900px) {{
-  .shell {{ grid-template-columns: 1fr; grid-template-rows: 48vh 1fr; }}
+  .shell {{ grid-template-columns: 1fr; grid-template-rows: 52vh 1fr; }}
 }}
 
-.task {{
-  display: flex; flex-direction: column; min-height: 0;
-  background: var(--surface);
-  border-right: 1px solid var(--line);
-}}
 .work {{
   display: flex; flex-direction: column; min-height: 0;
   background: var(--paper);
+  border-right: 1px solid var(--line);
+  order: 1;
+}}
+.task {{
+  display: flex; flex-direction: column; min-height: 0;
+  background: var(--surface);
+  order: 2;
+}}
+@media (max-width: 900px) {{
+  .work {{ order: 1; border-right: 0; border-bottom: 1px solid var(--line); }}
+  .task {{ order: 2; }}
+}}
+
+/* Just-in-time live feed */
+.jit-now {{
+  display: flex; align-items: flex-start; gap: .85rem;
+  padding: 1rem 1.15rem;
+  background: linear-gradient(135deg, var(--clay-soft), var(--surface));
+  border: 1px solid #e8cfc2;
+  border-radius: var(--r);
+  margin-bottom: .25rem;
+}}
+.jit-pulse {{
+  width: 12px; height: 12px; border-radius: 50%; background: var(--clay);
+  margin-top: .35rem; flex-shrink: 0;
+  box-shadow: 0 0 0 0 rgba(201,100,66,.45);
+  animation: pulse 1.6s ease-out infinite;
+}}
+.jit-pulse.idle {{ background: var(--line-2); box-shadow: none; animation: none; }}
+.jit-pulse.ok {{ background: var(--sage); animation: none; }}
+.jit-pulse.fail {{ background: var(--rose); animation: none; }}
+@keyframes pulse {{
+  0% {{ box-shadow: 0 0 0 0 rgba(201,100,66,.45); }}
+  70% {{ box-shadow: 0 0 0 12px rgba(201,100,66,0); }}
+  100% {{ box-shadow: 0 0 0 0 rgba(201,100,66,0); }}
+}}
+.jit-now .label {{ font-size: .7rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--clay-deep); }}
+.jit-now .title {{ font-family: var(--serif); font-size: 1.35rem; color: var(--ink); margin: .15rem 0; letter-spacing: -.02em; }}
+.jit-now .detail {{ font-size: .85rem; color: var(--ink-2); line-height: 1.45; }}
+.jit-feed {{
+  display: flex; flex-direction: column; gap: .45rem;
+  max-height: 200px; overflow: auto;
+}}
+.jit-event {{
+  display: grid; grid-template-columns: 64px 1fr; gap: .5rem;
+  padding: .5rem .65rem; border-radius: 10px;
+  background: var(--surface); border: 1px solid var(--line);
+  font-size: .78rem; animation: rise .3s var(--ease) both;
+}}
+.jit-event .t {{ color: var(--ink-3); font-variant-numeric: tabular-nums; }}
+.jit-event .b {{ color: var(--ink-2); word-break: break-word; }}
+.jit-event .b strong {{ color: var(--ink); font-weight: 600; }}
+.node-cards {{
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: .55rem;
+}}
+.node-card {{
+  background: var(--paper); border: 1px solid var(--line); border-radius: 12px;
+  padding: .7rem .8rem; min-width: 0;
+}}
+.node-card.on {{ border-color: #b7d4c0; background: var(--sage-soft); }}
+.node-card.off {{ opacity: .55; }}
+.node-card.red {{ border-color: #e0b4b0; background: var(--rose-soft); }}
+.node-card .nn {{ font-weight: 600; font-size: .85rem; color: var(--ink); word-break: break-word; }}
+.node-card .nm {{ font-size: .72rem; color: var(--ink-3); margin-top: .2rem; }}
+.node-card .meta {{
+  display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .45rem;
+}}
+.node-card .tag {{
+  font-size: .65rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+  padding: .15rem .4rem; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); color: var(--ink-2);
+}}
+.node-card .tag.hot {{ background: var(--clay-soft); border-color: #e8cfc2; color: var(--clay-deep); }}
+.data-snip {{
+  margin-top: .45rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .68rem; color: var(--ink-3); background: var(--surface);
+  border-radius: 8px; padding: .4rem .5rem; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; max-width: 100%;
 }}
 
 .section-label {{
@@ -566,7 +638,94 @@ table.t tr:last-child td {{ border-bottom: 0; }}
   </header>
 
   <div class="shell">
-    <!-- Task / agent (Cowork: give it a goal) -->
+    <!-- LEFT 2/3: Just-in-time process view -->
+    <section class="work">
+      <div class="work-head">
+        <div>
+          <h2>Just in time</h2>
+          <p>What is happening right now — active nodes, trust, and data in use. Not a dump of the whole catalog.</p>
+        </div>
+        <div class="work-actions">
+          <button class="btn quiet" onclick="loadDatasetPack('demo-finance')">Demo dataset</button>
+          <button class="btn" onclick="document.getElementById('fileCat').click()">Upload catalog</button>
+          <button class="btn" onclick="document.getElementById('fileCsv').click()">Upload CSV</button>
+          <button class="btn primary" onclick="runTool('known-path')">Run path</button>
+          <input type="file" id="fileCat" accept=".json,application/json" hidden onchange="onUploadCatalog(event)"/>
+          <input type="file" id="fileCsv" accept=".csv,text/csv" hidden onchange="onUploadCsv(event)"/>
+        </div>
+      </div>
+
+      <div class="work-body" style="grid-template-columns:1fr 1fr">
+        <div style="display:flex;flex-direction:column;gap:1rem;min-width:0">
+          <div class="jit-now" id="jitNow">
+            <div class="jit-pulse idle" id="jitPulse"></div>
+            <div>
+              <div class="label">Now</div>
+              <div class="title" id="jitTitle">Waiting for a task</div>
+              <div class="detail" id="jitDetail">Start from the panel on the right. This area updates live as tools run.</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Live feed</h3>
+            <div class="jit-feed" id="jitFeed">
+              <div class="jit-event"><span class="t">—</span><span class="b">Idle · no steps yet</span></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Nodes in play <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-3)">what is used right now</span></h3>
+            <div class="node-cards" id="nodeCards">
+              <div class="node-card off"><div class="nn">No nodes yet</div><div class="nm">Run a path to see assets light up</div></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Activation map</h3>
+            <svg id="graph" viewBox="0 0 520 220" role="img" aria-label="Activation map"></svg>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:1rem;min-width:0">
+          <div class="card">
+            <h3>Pipeline steps</h3>
+            <div class="timeline" id="timeline">
+              <div class="tl-item" data-s="intent"><div class="tl-rail"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-body"><div class="tl-title">Understand the goal</div><div class="tl-desc">Parse the data job intent</div></div></div>
+              <div class="tl-item" data-s="route"><div class="tl-rail"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-body"><div class="tl-title">Open route sheet</div><div class="tl-desc">Match job card pointers (URNs)</div></div></div>
+              <div class="tl-item" data-s="score"><div class="tl-rail"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-body"><div class="tl-title">Score &amp; shortlist</div><div class="tl-desc">Top-K only — cut the noise</div></div></div>
+              <div class="tl-item" data-s="ping"><div class="tl-rail"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-body"><div class="tl-title">Trust ping</div><div class="tl-desc">Owner · deprecated · quality</div></div></div>
+              <div class="tl-item" data-s="fetch"><div class="tl-rail"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-body"><div class="tl-title">Fetch shortlist</div><div class="tl-desc">Budgeted entity reads</div></div></div>
+              <div class="tl-item" data-s="sql"><div class="tl-rail"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-body"><div class="tl-title">Build artifact</div><div class="tl-desc">SQL you could merge</div></div></div>
+              <div class="tl-item" data-s="write"><div class="tl-rail"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-body"><div class="tl-title">Leave the route</div><div class="tl-desc">Write-back for the next run</div></div></div>
+            </div>
+            <div class="stats">
+              <div class="stat"><div class="k">Status</div><div class="v" id="kStatus">—</div></div>
+              <div class="stat"><div class="k">Fetches</div><div class="v" id="kFetches">—</div></div>
+              <div class="stat"><div class="k">Lit</div><div class="v" id="kAct">—</div></div>
+              <div class="stat"><div class="k">Trap</div><div class="v" id="kTrap">—</div></div>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Fetch cost</h3>
+            <div class="bars">
+              <div class="bar-row"><span>Baseline</span><div class="bar-track"><div class="bar-fill b" id="fb"></div></div><span class="bar-n" id="fbn">0</span></div>
+              <div class="bar-row"><span>Known path</span><div class="bar-track"><div class="bar-fill k" id="fk"></div></div><span class="bar-n" id="fkn">0</span></div>
+              <div class="bar-row"><span>Blocked</span><div class="bar-track"><div class="bar-fill x" id="fx"></div></div><span class="bar-n" id="fxn">0</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Trust mix</h3>
+            <svg id="donut" viewBox="0 0 200 140"></svg>
+          </div>
+          <div class="card">
+            <h3>CLI</h3>
+            <pre class="trace" id="cliTrace">Ready — actions shell into known-path CLI.</pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT 1/3: Task / agent input -->
     <section class="task">
       <div class="section-label">Task</div>
       <div class="quick-grid" id="quickGrid">
@@ -593,78 +752,6 @@ table.t tr:last-child td {{ border-bottom: 0; }}
             <button type="button" class="btn-send" id="sendBtn" onclick="sendAgent()" title="Send" aria-label="Send">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Work (Cowork: see the work as it happens) -->
-    <section class="work">
-      <div class="work-head">
-        <div>
-          <h2>See the work</h2>
-          <p>Each step lights only what the route sheet needs — no catalog dump, no invented tables.</p>
-        </div>
-        <div class="work-actions">
-          <button class="btn quiet" onclick="loadDatasetPack('demo-finance')">Demo dataset</button>
-          <button class="btn" onclick="document.getElementById('fileCat').click()">Upload catalog</button>
-          <button class="btn" onclick="document.getElementById('fileCsv').click()">Upload CSV</button>
-          <button class="btn primary" onclick="runTool('known-path')">Run path</button>
-          <input type="file" id="fileCat" accept=".json,application/json" hidden onchange="onUploadCatalog(event)"/>
-          <input type="file" id="fileCsv" accept=".csv,text/csv" hidden onchange="onUploadCsv(event)"/>
-        </div>
-      </div>
-
-      <div class="work-body">
-        <div style="display:flex;flex-direction:column;gap:1rem;min-width:0">
-          <div class="card">
-            <h3>Progress</h3>
-            <div class="timeline" id="timeline">
-              <div class="tl-item" data-s="intent"><div class="tl-rail"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-body"><div class="tl-title">Understand the goal</div><div class="tl-desc">Parse the data job intent</div></div></div>
-              <div class="tl-item" data-s="route"><div class="tl-rail"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-body"><div class="tl-title">Open route sheet</div><div class="tl-desc">Match job card pointers (URNs)</div></div></div>
-              <div class="tl-item" data-s="score"><div class="tl-rail"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-body"><div class="tl-title">Score &amp; shortlist</div><div class="tl-desc">Top-K only — cut the noise</div></div></div>
-              <div class="tl-item" data-s="ping"><div class="tl-rail"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-body"><div class="tl-title">Trust ping</div><div class="tl-desc">Owner · deprecated · quality</div></div></div>
-              <div class="tl-item" data-s="fetch"><div class="tl-rail"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-body"><div class="tl-title">Fetch shortlist</div><div class="tl-desc">Budgeted entity reads</div></div></div>
-              <div class="tl-item" data-s="sql"><div class="tl-rail"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-body"><div class="tl-title">Build artifact</div><div class="tl-desc">SQL you could merge</div></div></div>
-              <div class="tl-item" data-s="write"><div class="tl-rail"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-body"><div class="tl-title">Leave the route</div><div class="tl-desc">Write-back for the next run</div></div></div>
-            </div>
-            <div class="stats">
-              <div class="stat"><div class="k">Status</div><div class="v" id="kStatus">—</div></div>
-              <div class="stat"><div class="k">Fetches</div><div class="v" id="kFetches">—</div></div>
-              <div class="stat"><div class="k">Lit</div><div class="v" id="kAct">—</div></div>
-              <div class="stat"><div class="k">Trap</div><div class="v" id="kTrap">—</div></div>
-            </div>
-          </div>
-          <div class="card">
-            <h3>Activation map</h3>
-            <svg id="graph" viewBox="0 0 520 220" role="img" aria-label="Activation map"></svg>
-          </div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:1rem;min-width:0">
-          <div class="card">
-            <h3>Fetch cost</h3>
-            <div class="bars">
-              <div class="bar-row"><span>Baseline</span><div class="bar-track"><div class="bar-fill b" id="fb"></div></div><span class="bar-n" id="fbn">0</span></div>
-              <div class="bar-row"><span>Known path</span><div class="bar-track"><div class="bar-fill k" id="fk"></div></div><span class="bar-n" id="fkn">0</span></div>
-              <div class="bar-row"><span>Blocked</span><div class="bar-track"><div class="bar-fill x" id="fx"></div></div><span class="bar-n" id="fxn">0</span></div>
-            </div>
-          </div>
-          <div class="card">
-            <h3>Trust</h3>
-            <svg id="donut" viewBox="0 0 200 140"></svg>
-          </div>
-          <div class="card" style="flex:1">
-            <h3>Shortlist</h3>
-            <table class="t">
-              <thead><tr><th></th><th>Asset</th><th>Rel</th><th>Trust</th></tr></thead>
-              <tbody id="shortBody">
-                <tr><td colspan="4" style="color:var(--ink-3);padding:1rem .3rem">Hand off a task to fill this.</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <div class="card">
-            <h3>CLI</h3>
-            <pre class="trace" id="cliTrace">Ready — actions shell into known-path CLI.</pre>
           </div>
         </div>
       </div>
@@ -788,8 +875,53 @@ function trapHit(plan) {{
   return (plan.nodes || []).some(n => n.activated && /old|backup|tmp/i.test(n.name || ''));
 }}
 
+function setJit(title, detail, pulse) {{
+  $('jitTitle').textContent = title;
+  $('jitDetail').textContent = detail;
+  const p = $('jitPulse');
+  p.className = 'jit-pulse ' + (pulse || '');
+}}
+function pushFeed(msg) {{
+  const feed = $('jitFeed');
+  if (feed.children.length === 1 && feed.textContent.includes('Idle')) feed.innerHTML = '';
+  const t = new Date();
+  const ts = String(t.getHours()).padStart(2,'0') + ':' + String(t.getMinutes()).padStart(2,'0') + ':' + String(t.getSeconds()).padStart(2,'0');
+  const row = document.createElement('div');
+  row.className = 'jit-event';
+  row.innerHTML = `<span class="t">${{ts}}</span><span class="b">${{msg}}</span>`;
+  feed.prepend(row);
+  while (feed.children.length > 40) feed.removeChild(feed.lastChild);
+}}
+function renderNodeCards(plan) {{
+  const nodes = plan.nodes || [];
+  const box = $('nodeCards');
+  if (!nodes.length) {{
+    box.innerHTML = '<div class="node-card off"><div class="nn">No nodes yet</div><div class="nm">Run a path to see assets light up</div></div>';
+    return;
+  }}
+  // Show activated first, then a few off nodes
+  const sorted = [...nodes].sort((a,b) => (b.activated?1:0) - (a.activated?1:0));
+  box.innerHTML = sorted.slice(0, 8).map(n => {{
+    const trap = /old|backup|tmp/i.test(n.name || '');
+    const cls = n.trust === 'red' ? 'red' : (n.activated ? 'on' : 'off');
+    const snip = (n.reasons || []).slice(0, 3).join(' · ') || (n.role ? 'role: ' + n.role : '—');
+    const tags = [
+      n.activated ? '<span class="tag hot">ON</span>' : '<span class="tag">off</span>',
+      n.trust ? `<span class="tag">${{escapeHtml(n.trust)}}</span>` : '',
+      n.role ? `<span class="tag">${{escapeHtml(n.role)}}</span>` : '',
+      trap ? '<span class="tag hot">trap?</span>' : '',
+      `rel ${{n.relevance}}`
+    ].filter(Boolean).join('');
+    return `<div class="node-card ${{cls}}">
+      <div class="nn">${{escapeHtml(n.name || n.urn || 'node')}}</div>
+      <div class="nm">${{escapeHtml((n.urn || '').slice(0, 56))}}${{(n.urn||'').length>56?'…':''}}</div>
+      <div class="meta">${{tags}}</div>
+      <div class="data-snip" title="${{escapeHtml(snip)}}">${{escapeHtml(snip)}}</div>
+    </div>`;
+  }}).join('');
+}}
+
 function setTimeline(plan) {{
-  const order = ['intent','route','score','ping','fetch','sql','write'];
   const st = plan.status;
   document.querySelectorAll('.tl-item').forEach(el => {{
     el.classList.remove('done','active','fail');
@@ -822,14 +954,22 @@ function paintPlan(plan) {{
   setTimeline(plan);
   drawGraph(plan);
   drawDonut(plan);
-  const rows = act.length ? act : (plan.nodes || []).slice(0, 6);
-  $('shortBody').innerHTML = rows.map(n => `<tr>
-    <td><span class="dot ${{n.activated ? 'on' : ''}} ${{n.trust === 'red' ? 'red' : ''}} ${{/old|backup/i.test(n.name||'') ? 'trap' : ''}}"></span></td>
-    <td>${{escapeHtml((n.name||'').replace(/^[^.]+\./,''))}}</td>
-    <td>${{n.relevance}}</td>
-    <td>${{escapeHtml(n.trust)}}</td>
-  </tr>`).join('') || '<tr><td colspan="4" style="color:var(--ink-3)">Empty shortlist</td></tr>';
+  renderNodeCards(plan);
   updateFetchBar(plan.mode, plan.entity_fetches || 0);
+
+  // JIT headline from final plan
+  if (st === 'BLOCKED_TRUST') {{
+    setJit('Stopped · trust red', plan.message || 'Required asset failed trust. No invented replacement.', 'fail');
+    pushFeed(`<strong>Blocked</strong> · ${{escapeHtml(plan.message || 'trust fail')}}`);
+  }} else if (st === 'SUCCESS') {{
+    const names = act.map(n => n.name).join(', ') || 'none';
+    setJit('Done · shortlist ready', `Using ${{act.length}} node(s): ${{names}}. ${{plan.entity_fetches}} fetch(es).`, 'ok');
+    pushFeed(`<strong>Activated</strong> · ${{escapeHtml(names)}} · ${{plan.entity_fetches}} fetches`);
+    act.forEach(n => pushFeed(`<strong>Node ON</strong> · ${{escapeHtml(n.name)}} · trust ${{escapeHtml(n.trust)}} · rel ${{n.relevance}}`));
+  }} else {{
+    setJit(st, plan.message || 'Run finished', '');
+    pushFeed(`<strong>${{escapeHtml(st)}}</strong> · ${{escapeHtml(plan.message || '')}}`);
+  }}
 }}
 
 function updateFetchBar(mode, n) {{
@@ -906,16 +1046,20 @@ function appendCli(cmd, data) {{
 async function runTool(mode) {{
   setBusy(true);
   const intent = $('prompt').value.trim() || BOOT.default_intent;
+  setJit('Running · ' + mode, 'Shelling into CLI with intent: ' + intent, '');
+  pushFeed(`<strong>Start</strong> · mode <code>${{escapeHtml(mode)}}</code>`);
+  pushFeed(`<strong>Intent</strong> · ${{escapeHtml(intent)}}`);
   addMsg('step', `<span class="badge">Working</span><div class="cmd">run --mode ${{escapeHtml(mode)}}</div>`);
   try {{
     const r = await fetch('/api/cli/run?mode=' + encodeURIComponent(mode) + '&intent=' + encodeURIComponent(intent));
     const data = await r.json();
     appendCli(data.command, data);
+    pushFeed(`<strong>CLI</strong> · ${{escapeHtml(data.command || '')}} · ${{data.duration_ms || 0}}ms`);
     if (data.plan) {{
       paintPlan(data.plan);
       addMsg('assistant', summarizePlan(data.plan), {{ markdown: true }});
     }}
-  }} catch (e) {{ toast(String(e)); }}
+  }} catch (e) {{ toast(String(e)); setJit('Error', String(e), 'fail'); }}
   finally {{ setBusy(false); }}
 }}
 
@@ -934,6 +1078,8 @@ async function sendAgent() {{
   addMsg('user', escapeHtml(text), {{ markdown: false }});
   $('prompt').value = '';
   setBusy(true);
+  setJit('Agent thinking…', text, '');
+  pushFeed(`<strong>User</strong> · ${{escapeHtml(text)}}`);
   const thinking = addMsg('assistant', '', {{ markdown: false }});
   thinking.innerHTML = '<div class="md"><p><span class="loading-dots">Working</span></p></div>';
   try {{
@@ -946,18 +1092,24 @@ async function sendAgent() {{
     thinking.remove();
     const thinkHtml = renderThinkingPanel(data.thinking, data.reasoning);
     if (thinkHtml) addMsg('think', thinkHtml, {{ markdown: false }});
+    (data.thinking || []).forEach(t => {{
+      if (t.phase === 'tool') pushFeed(`<strong>Tool</strong> · ${{escapeHtml(t.title || '')}} — ${{escapeHtml((t.detail||'').slice(0,120))}}`);
+    }});
     (data.tool_traces || []).forEach(tr => {{
       if (tr.command) appendCli(tr.command, {{ exit_code: tr.exit_code, duration_ms: tr.duration_ms }});
+      pushFeed(`<strong>CLI</strong> · ${{escapeHtml(tr.command || tr.tool || '')}} · ${{tr.duration_ms||0}}ms`);
     }});
     if (data.plan) paintPlan(data.plan);
     if (data.plans) data.plans.forEach(p => updateFetchBar(p.mode, p.entity_fetches || 0));
     if (data.content) addMsg('assistant', data.content, {{ markdown: true }});
     else if (data.error) {{
       const err = typeof data.error === 'string' ? data.error : JSON.stringify(data.error, null, 2);
+      setJit('Error', err.slice(0, 160), 'fail');
       addMsg('assistant', '**Something went wrong**\\n\\n```\\n' + err + '\\n```', {{ markdown: true }});
     }}
   }} catch (e) {{
     thinking.remove();
+    setJit('Error', String(e), 'fail');
     addMsg('assistant', '**Request failed**\\n\\n' + String(e), {{ markdown: true }});
   }} finally {{
     setBusy(false);
