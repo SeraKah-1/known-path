@@ -78,6 +78,82 @@ Be concise. After tools, summarize: status, assets lit, fetches, whether a trap 
 """
 
 
+def _parse_sse_chat(raw: str) -> dict[str, Any]:
+    """Collapse OpenAI-style SSE chat chunks into one completion-shaped object."""
+    content_parts: list[str] = []
+    tool_acc: dict[int, dict[str, Any]] = {}
+    role = "assistant"
+    model = ""
+    finish = None
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line.startswith("data:"):
+            continue
+        payload = line[5:].strip()
+        if not payload or payload == "[DONE]":
+            continue
+        try:
+            chunk = json.loads(payload)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(chunk, dict) and chunk.get("model"):
+            model = chunk.get("model") or model
+        choices = chunk.get("choices") if isinstance(chunk, dict) else None
+        if not choices:
+            continue
+        ch0 = choices[0] or {}
+        delta = ch0.get("delta") or ch0.get("message") or {}
+        if delta.get("role"):
+            role = delta["role"]
+        if delta.get("content"):
+            content_parts.append(str(delta["content"]))
+        # tool_calls streaming
+        for tc in delta.get("tool_calls") or []:
+            idx = int(tc.get("index") or 0)
+            slot = tool_acc.setdefault(
+                idx,
+                {
+                    "id": tc.get("id") or f"call_{idx}",
+                    "type": "function",
+                    "function": {"name": "", "arguments": ""},
+                },
+            )
+            if tc.get("id"):
+                slot["id"] = tc["id"]
+            fn = tc.get("function") or {}
+            if fn.get("name"):
+                slot["function"]["name"] = fn["name"]
+            if fn.get("arguments"):
+                slot["function"]["arguments"] += fn["arguments"]
+        if ch0.get("finish_reason"):
+            finish = ch0.get("finish_reason")
+    message: dict[str, Any] = {"role": role, "content": "".join(content_parts) or None}
+    if tool_acc:
+        message["tool_calls"] = [tool_acc[i] for i in sorted(tool_acc)]
+    return {
+        "id": "sse-collapsed",
+        "object": "chat.completion",
+        "model": model,
+        "choices": [{"index": 0, "message": message, "finish_reason": finish or "stop"}],
+    }
+
+
+def _decode_body(raw: str, content_type: str = "") -> Any:
+    raw = (raw or "").strip()
+    if not raw:
+        return {}
+    ct = (content_type or "").lower()
+    if "text/event-stream" in ct or raw.startswith("data:"):
+        return _parse_sse_chat(raw)
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as e:
+        # last resort: maybe SSE without header
+        if "data:" in raw:
+            return _parse_sse_chat(raw)
+        return {"error": f"Invalid JSON from API: {e}", "raw_preview": raw[:240]}
+
+
 def _http_json(
     method: str,
     url: str,
@@ -89,18 +165,20 @@ def _http_json(
     data = None if body is None else json.dumps(body).encode("utf-8")
     req = urllib.request.Request(url, data=data, method=method)
     req.add_header("Content-Type", "application/json")
+    req.add_header("Accept", "application/json")
     if api_key:
         req.add_header("Authorization", f"Bearer {api_key}")
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            raw = resp.read().decode("utf-8")
-            return resp.status, json.loads(raw) if raw else {}
+            raw = resp.read().decode("utf-8", errors="replace")
+            ct = resp.headers.get("Content-Type") or ""
+            return resp.status, _decode_body(raw, ct)
     except urllib.error.HTTPError as e:
         err = e.read().decode("utf-8", errors="replace")
-        try:
-            parsed = json.loads(err)
-        except json.JSONDecodeError:
-            parsed = {"error": err}
+        ct = e.headers.get("Content-Type") if e.headers else ""
+        parsed = _decode_body(err, ct or "")
+        if not parsed:
+            parsed = {"error": err or f"HTTP {e.code} empty body"}
         return e.code, parsed
     except Exception as e:
         return 0, {"error": str(e)}
@@ -200,12 +278,15 @@ def chat(messages: list[dict[str, Any]], *, max_tool_rounds: int = 4) -> dict[st
     plans = None
 
     for _ in range(max_tool_rounds):
+        # Force non-streaming JSON. Some local gateways default to SSE and
+        # return empty/invalid bodies when the client expects one-shot JSON.
         body = {
             "model": model,
             "messages": msgs,
             "tools": TOOL_DEFS,
             "tool_choice": "auto",
             "temperature": 0.2,
+            "stream": False,
         }
         code, data = _http_json(
             "POST",
@@ -214,14 +295,33 @@ def chat(messages: list[dict[str, Any]], *, max_tool_rounds: int = 4) -> dict[st
             body=body,
             timeout=120.0,
         )
-        if code != 200:
-            return {
-                "ok": False,
-                "error": data,
-                "status": code,
-                "tool_traces": traces,
+        if code != 200 or (isinstance(data, dict) and data.get("error") and not data.get("choices")):
+            # Retry once without tools (some models/gateways choke on tools)
+            body_simple = {
+                "model": model,
                 "messages": msgs,
+                "temperature": 0.2,
+                "stream": False,
             }
+            code2, data2 = _http_json(
+                "POST",
+                f"{base}/chat/completions",
+                api_key=key,
+                body=body_simple,
+                timeout=120.0,
+            )
+            if code2 == 200 and isinstance(data2, dict) and data2.get("choices"):
+                code, data = code2, data2
+            else:
+                err = data if code != 200 else data2
+                return {
+                    "ok": False,
+                    "error": err,
+                    "status": code if code != 200 else code2,
+                    "tool_traces": traces,
+                    "messages": msgs,
+                    "hint": "Gateway must accept stream:false JSON, or return parseable SSE.",
+                }
         choice = (data.get("choices") or [{}])[0]
         msg = choice.get("message") or {}
         tool_calls = msg.get("tool_calls") or []
